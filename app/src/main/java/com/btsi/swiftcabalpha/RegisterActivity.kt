@@ -73,7 +73,8 @@ class RegisterActivity : AppCompatActivity() {
                         val userData = hashMapOf(
                             "fullName" to fullName,
                             "email" to email,
-                            "mobileNumber" to phone, // Key changed here
+                            "mobileNumber" to phone,
+                            "role" to "Passenger", // Added role for passenger
                             "createdAt" to System.currentTimeMillis()
                         )
 

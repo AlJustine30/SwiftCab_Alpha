@@ -4,8 +4,6 @@
     package="com.btsi.swiftcabalpha">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -15,10 +13,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SwiftCabAlpha"
         tools:ignore="GoogleAppIndexingWarning">
-
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBpIuViGza83ArXqJdfv-wcnVfoDr4LhAM" />
 
         <activity
             android:name=".MainActivity"
@@ -37,6 +31,7 @@
             android:name=".RegisterActivity"
             android:exported="false" />
         
+        <!-- Added HomeActivity declaration -->
         <activity
             android:name=".HomeActivity"
             android:exported="false" />
@@ -44,11 +39,6 @@
         <activity
             android:name=".ProfileActivity"
             android:exported="false" />
-            
-        <activity
-            android:name=".BookingActivity"
-            android:exported="false"
-            android:label="Book a Ride" />
 
     </application>
 
