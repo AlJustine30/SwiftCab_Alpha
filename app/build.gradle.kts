@@ -48,16 +48,17 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.3")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.material3:material3:1.3.2")
-    // implementation("com.google.android.material:material:1.9.0") // Removed this duplicate
-    implementation(platform("com.google.firebase:firebase-bom:32.0.0")) // This line is fine
+    implementation(platform("com.google.firebase:firebase-bom:32.0.0")) // Kept one BOM
     implementation("com.google.firebase:firebase-auth") // Correct
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-database") // Changed this line
-    implementation("com.github.ybq:android-spinkit:1.4.0") // Added SpinKit
-    // implementation("androidx.appcompat:appcompat:1.6.1") // Removed this duplicate
-    // implementation("com.google.android.material:material:1.9.0") // Removed this duplicate
-    // implementation("androidx.constraintlayout:constraintlayout:2.1.4") // Removed this duplicate
+    implementation("com.github.ybq:android-spinkit:1.4.0")
+    implementation(libs.glide) // Kept this, assuming it's from version catalog
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    annotationProcessor(libs.compiler)
 }

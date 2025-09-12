@@ -87,42 +87,31 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:textAppearance="?attr/textAppearanceBodyLarge"
-        app:layout_constraintEnd_toStartOf="@+id/updateEmailButton"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textViewEmailLabel"
         tools:text="user@example.com" />
-
-    <Button
-        android:id="@+id/updateEmailButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:text="Update Email"
-        style="?attr/materialButtonOutlinedStyle"
-        app:layout_constraintBaseline_toBaselineOf="@+id/profileEmailTextView"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/profileEmailTextView" />
-
-
-    <Button
-        android:id="@+id/changePasswordButton"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Change Password"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/profileEmailTextView" />
-
 
     <Button
         android:id="@+id/saveProfileButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
+        android:onClick="saveChangesAndRedirect"
         android:text="Save Changes"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/changePasswordButton" />
+        app:layout_constraintTop_toBottomOf="@+id/profileEmailTextView" />
+
+    <Button
+        android:id="@+id/deleteAccountButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Delete Account"
+        android:backgroundTint="@android:color/holo_red_light"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/saveProfileButton" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

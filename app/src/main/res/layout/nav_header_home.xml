@@ -4,7 +4,6 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/colorPrimaryDark"
-    android:gravity="bottom"
     android:orientation="vertical"
     android:padding="16dp"
     android:theme="@style/ThemeOverlay.AppCompat.Dark">
@@ -13,27 +12,30 @@
         android:id="@+id/nav_header_profile_image"
         android:layout_width="80dp"
         android:layout_height="80dp"
-        android:layout_marginTop="24dp"
-        android:contentDescription="Profile Picture"
-        android:src="@mipmap/ic_launcher_round" /> 
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="16dp"
+        android:contentDescription="Profile Image"
+        android:scaleType="centerCrop"
+        app:srcCompat="@drawable/default_profile" />
 
     <TextView
         android:id="@+id/nav_header_user_name"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:paddingTop="8dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
         android:text="User Name"
         android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-        android:textColor="?attr/colorOnPrimary" />
+        android:textColor="@android:color/white" />
 
     <Button
         android:id="@+id/nav_header_edit_profile_button"
-        style="?attr/materialButtonOutlinedStyle"
+        style="?attr/borderlessButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:layout_marginTop="8dp"
         android:text="Edit Profile"
-        android:textColor="?attr/colorOnPrimary"
-        app:strokeColor="?attr/colorOnPrimary" />
+        android:textColor="@android:color/white" />
 
 </LinearLayout>
