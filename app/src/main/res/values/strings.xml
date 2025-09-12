@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">SwiftCab Alpha</string>
-    <string name="login">Login</string>
+    <string name="title_activity_maps">MapsActivity</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="swiftcab_motto">Your Journey, Our Priority</string>
+    <string name="book_now">Book Now</string>
+    <string name="profile_image_desc">User profile image</string>
 </resources>

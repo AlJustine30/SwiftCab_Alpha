@@ -79,8 +79,8 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         val bookNowButton = findViewById<Button>(R.id.BookNowButton)
         bookNowButton.setOnClickListener {
-            Toast.makeText(this, "Book Now clicked!", Toast.LENGTH_SHORT).show()
-            // Example: startActivity(Intent(this, BookingActivity::class.java))
+            // Toast.makeText(this, "Book Now clicked!", Toast.LENGTH_SHORT).show() // Optional: remove toast or keep for debug
+            startActivity(Intent(this, BookingActivity::class.java))
         }
     }
 
@@ -142,10 +142,10 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        Toast.makeText(this, "onNavigationItemSelected called. Item ID: ${item.itemId}, Title: ${item.title}", Toast.LENGTH_LONG).show() // DEBUG TOAST
+        // Toast.makeText(this, "onNavigationItemSelected called. Item ID: ${item.itemId}, Title: ${item.title}", Toast.LENGTH_LONG).show() // DEBUG TOAST
         when (item.itemId) {
             R.id.nav_logout -> {
-                Toast.makeText(this, "Logout item clicked. Signing out...", Toast.LENGTH_SHORT).show() // DEBUG TOAST for specific item
+                // Toast.makeText(this, "Logout item clicked. Signing out...", Toast.LENGTH_SHORT).show() // DEBUG TOAST for specific item
                 auth.signOut()
                 val intent = Intent(this, LoginActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -154,7 +154,7 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
             // Add other cases here if you add more menu items later
             else -> {
-                Toast.makeText(this, "Unknown navigation item: ${item.title}", Toast.LENGTH_SHORT).show() // DEBUG for other items
+                // Toast.makeText(this, "Unknown navigation item: ${item.title}", Toast.LENGTH_SHORT).show() // DEBUG for other items
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close the drawer
