@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "323933258887",
+    "project_id": "swiftcab-de564",
+    "storage_bucket": "swiftcab-de564.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:323933258887:android:5b1d43382d1e483661a422",
+        "android_client_info": {
+          "package_name": "com.btsi.swiftcabalpha"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "323933258887-sbsasl1pp8hma7pcco66gehufcekm5li.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD-SqKgaYzyvuN6Cg5BXUEYToQcy8s7cA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "323933258887-sbsasl1pp8hma7pcco66gehufcekm5li.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:323933258887:android:bbef209abadc524661a422",
+        "android_client_info": {
+          "package_name": "com.btsi.swiftcabalpha1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "323933258887-sbsasl1pp8hma7pcco66gehufcekm5li.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD-SqKgaYzyvuN6Cg5BXUEYToQcy8s7cA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "323933258887-sbsasl1pp8hma7pcco66gehufcekm5li.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
