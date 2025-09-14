@@ -72,23 +72,17 @@ class LoginActivity : AppCompatActivity() {
                                             else -> {
                                                 // Role is null, not 'Driver', or not 'Passenger'
                                                 Toast.makeText(this, "User role not defined or unknown.", Toast.LENGTH_LONG).show()
-                                                // Optionally, sign out the user if role is critical and not found
-                                                // auth.signOut()
                                             }
                                         }
                                     } else {
                                         // User document doesn't exist in Firestore for this UID
                                         Toast.makeText(this, "User data not found. Please contact support.", Toast.LENGTH_LONG).show()
-                                        // Optionally, sign out the user
-                                        // auth.signOut()
                                     }
                                 }
                                 .addOnFailureListener { e ->
                                     progressBar.visibility = android.view.View.GONE
                                     loginButton.isEnabled = true
                                     Toast.makeText(this, "Error fetching user role: ${e.message}", Toast.LENGTH_LONG).show()
-                                    // Optionally, sign out the user
-                                    // auth.signOut()
                                 }
                         } ?: run {
                             // Should not happen if task.isSuccessful is true and user is not null

@@ -74,7 +74,7 @@ class RegisterActivity : AppCompatActivity() {
                             "fullName" to fullName,
                             "email" to email,
                             "mobileNumber" to phone,
-                            "role" to "Passenger", // Added role for passenger
+                            "role" to "Passenger",
                             "createdAt" to System.currentTimeMillis()
                         )
 

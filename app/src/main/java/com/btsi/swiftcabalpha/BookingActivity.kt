@@ -92,13 +92,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 Toast.makeText(this, "Please select both pickup and drop-off locations.", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
-            // Logic for confirming booking will go here
+            // Logic for confirming booking dito ilalagay
             val pickupLoc = pickupMarker!!.position
             val dropoffLoc = dropoffMarker!!.position
             Toast.makeText(this, "Booking: From ${pickupLoc.latitude},${pickupLoc.longitude} to ${dropoffLoc.latitude},${dropoffLoc.longitude}", Toast.LENGTH_LONG).show()
             // TODO: Implement actual booking logic
         }
-        updateButtonStates() // Initial button state
+        updateButtonStates()
     }
 
     private fun updateButtonStates() {
@@ -124,10 +124,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     pickupMarker?.remove() // Remove previous pickup marker
                     pickupMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Pickup Location"))
                     pickupLocationTextView.text = "Pickup: Lat: ${latLng.latitude.format(5)}, Lng: ${latLng.longitude.format(5)}"
-                    // Automatically switch to drop-off mode after setting pickup, if desired
-                    // currentSelectionMode = SelectionMode.DROPOFF
-                    // updateButtonStates()
-                    // Toast.makeText(this, "Tap map to set Drop-off Location", Toast.LENGTH_SHORT).show()
                 }
                 SelectionMode.DROPOFF -> {
                     dropoffMarker?.remove() // Remove previous dropoff marker

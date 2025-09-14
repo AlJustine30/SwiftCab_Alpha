@@ -7,6 +7,6 @@ class DriverDashboardActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_driver_dashboard)
-        // You can add driver-specific UI and logic here later
+        // TODO add driver UI and logic
     }
 }

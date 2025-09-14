@@ -17,7 +17,7 @@ import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
-class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener { // Implement listener
+class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
@@ -46,7 +46,7 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         navView = findViewById(R.id.nav_view_home)
 
         // Set navigation item selected listener
-        navView.setNavigationItemSelectedListener(this) // Crucial for click handling
+        navView.setNavigationItemSelectedListener(this)
 
         toggle = ActionBarDrawerToggle(
             this,
@@ -69,7 +69,7 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         headerEditProfileButton.setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
-            drawerLayout.closeDrawers() // Close drawer after click
+            drawerLayout.closeDrawers() // Closes drawer after click
         }
 
         val userNameTextView = findViewById<TextView>(R.id.userNameTextView)
@@ -79,7 +79,6 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         val bookNowButton = findViewById<Button>(R.id.BookNowButton)
         bookNowButton.setOnClickListener {
-            // Toast.makeText(this, "Book Now clicked!", Toast.LENGTH_SHORT).show() // Optional: remove toast or keep for debug
             startActivity(Intent(this, BookingActivity::class.java))
         }
     }
@@ -142,19 +141,17 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        // Toast.makeText(this, "onNavigationItemSelected called. Item ID: ${item.itemId}, Title: ${item.title}", Toast.LENGTH_LONG).show() // DEBUG TOAST
         when (item.itemId) {
             R.id.nav_logout -> {
-                // Toast.makeText(this, "Logout item clicked. Signing out...", Toast.LENGTH_SHORT).show() // DEBUG TOAST for specific item
                 auth.signOut()
                 val intent = Intent(this, LoginActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 startActivity(intent)
                 finish() // Finish HomeActivity
             }
-            // Add other cases here if you add more menu items later
+            // Add other cases here if need pa add ng menu items
             else -> {
-                // Toast.makeText(this, "Unknown navigation item: ${item.title}", Toast.LENGTH_SHORT).show() // DEBUG for other items
+                Toast.makeText(this, "Unknown navigation item: ${item.title}", Toast.LENGTH_SHORT).show() // DEBUG for items
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START) // Close the drawer
@@ -162,7 +159,7 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     override fun onBackPressed() {
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) { // Corrected to use GravityCompat.START
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         } else {
             super.onBackPressed()
