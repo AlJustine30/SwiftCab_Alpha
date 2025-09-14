@@ -105,7 +105,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         setPickupButton.isEnabled = currentSelectionMode != SelectionMode.PICKUP
         setDropoffButton.isEnabled = currentSelectionMode != SelectionMode.DROPOFF
 
-        // Optional: Change background or style for active button
         if (currentSelectionMode == SelectionMode.PICKUP) {
             setPickupButton.setBackgroundColor(ContextCompat.getColor(this, R.color.my_button_active_color))
             setDropoffButton.setBackgroundColor(ContextCompat.getColor(this, R.color.my_button_inactive_color))
