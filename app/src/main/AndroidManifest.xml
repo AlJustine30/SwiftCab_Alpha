@@ -31,13 +31,17 @@
             android:name=".RegisterActivity"
             android:exported="false" />
         
-        <!-- Added HomeActivity declaration -->
         <activity
             android:name=".HomeActivity"
             android:exported="false" />
 
         <activity
             android:name=".ProfileActivity"
+            android:exported="false" />
+
+        <!-- Added DriverDashboardActivity declaration -->
+        <activity
+            android:name=".DriverDashboardActivity"
             android:exported="false" />
 
     </application>

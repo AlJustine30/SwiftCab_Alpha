@@ -95,9 +95,15 @@ class DriverDashboardActivity : AppCompatActivity(), NavigationView.OnNavigation
                 Toast.makeText(this, "Settings Clicked", Toast.LENGTH_SHORT).show()
             }
             R.id.nav_driver_logout -> {
-                // TODO: Implement logout logic (e.g., Firebase sign out, clear session)
-                Toast.makeText(this, "Logout Clicked", Toast.LENGTH_SHORT).show()
-                // Example: finishAffinity() or navigate to LoginActivity
+                // Firebase Sign Out
+                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+
+                // Navigate to LoginActivity
+                val intent = android.content.Intent(this, LoginActivity::class.java)
+                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                finish() // Finish DriverDashboardActivity
+                Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show()
             }
         }
         drawerLayout.closeDrawer(GravityCompat.START)
