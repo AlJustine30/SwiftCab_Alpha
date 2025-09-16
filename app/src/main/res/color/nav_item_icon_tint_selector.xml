@@ -1,0 +1,8 @@
+'''<!-- res/color/nav_item_icon_tint_selector.xml -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Icon tint when item is checked (selected) -->
+    <item android:state_checked="true" android:color="@android:color/white"/> <!-- Or your desired color, ensure it contrasts with checked background -->
+    <!-- Default icon tint -->
+    <item android:color="#757575"/> <!-- Medium gray for default -->
+</selector>
+'''

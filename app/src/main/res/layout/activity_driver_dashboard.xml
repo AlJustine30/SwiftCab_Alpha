@@ -112,10 +112,11 @@
                                 android:layout_marginTop="12dp"
                                 android:text="Accept Ride"
                                 android:visibility="gone"
-                                tools:visibility="visible"/>
+                                tools:visibility="visible" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
+                    <!-- NavigationView was here, it has been moved -->
                     <!-- Earnings CardView has been removed -->
 
                 </LinearLayout>
@@ -144,6 +145,12 @@
         android:layout_gravity="start"
         android:fitsSystemWindows="true"
         app:headerLayout="@layout/nav_header_driver"
-        app:menu="@menu/driver_nav_menu" />
+        app:menu="@menu/driver_nav_menu"
+        app:itemBackground="@drawable/nav_item_background"
+        app:itemTextColor="@color/nav_item_text_color_selector"
+        app:itemIconTint="@color/nav_item_icon_tint_selector"
+        app:itemShapeAppearanceOverlay="@style/ShapeAppearance.App.SmallComponent"
+        android:itemPaddingTop="8dp"
+        android:itemPaddingBottom="8dp" />
 
 </androidx.drawerlayout.widget.DrawerLayout>

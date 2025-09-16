@@ -1,0 +1,8 @@
+'''<!-- res/color/nav_item_text_color_selector.xml -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Text color when item is checked (selected) -->
+    <item android:state_checked="true" android:color="@android:color/white"/> <!-- Or your desired color, ensure it contrasts with checked background -->
+    <!-- Default text color -->
+    <item android:color="#333333"/> <!-- Dark gray for default -->
+</selector>
+'''
