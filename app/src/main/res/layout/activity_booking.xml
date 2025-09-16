@@ -2,12 +2,13 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mainBookingLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".BookingActivity">
 
     <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/mapFragmentContainer"
+        android:id="@+id/mapFragmentContainerView"
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -15,6 +16,16 @@
         app:layout_constraintBottom_toTopOf="@+id/infoCardView"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <ImageView
+        android:id="@+id/back_button_booking"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/ic_arrow_back"
+        android:padding="16dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:contentDescription="Back" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/infoCardView"
@@ -31,61 +42,191 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- Pickup Location Input -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pickup Location"
+                style="?attr/textAppearanceSubtitle2"/>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="12dp">
+                android:gravity="center_vertical">
+
+                <fragment
+                    android:id="@+id/pickup_autocomplete_fragment"
+                    android:name="com.google.android.libraries.places.widget.AutocompleteSupportFragment"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+
+                <ImageView
+                    android:id="@+id/buttonCurrentLocationPickup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_my_location"
+                    android:padding="8dp"
+                    android:contentDescription="Set current location as pickup" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/pickupLocationEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Selected pickup address"
+                android:textSize="14sp"
+                android:focusable="false"
+                android:clickable="false"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp"/>
+
+            <!-- Destination Location Input -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Drop-off Location"
+                android:layout_marginTop="8dp"
+                style="?attr/textAppearanceSubtitle2"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <fragment
+                    android:id="@+id/destination_autocomplete_fragment"
+                    android:name="com.google.android.libraries.places.widget.AutocompleteSupportFragment"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+                <ImageView
+                    android:id="@+id/buttonCurrentLocationDropoff"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_my_location"
+                    android:padding="8dp"
+                    android:contentDescription="Set current location as drop-off" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/destinationEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Selected drop-off address"
+                android:textSize="14sp"
+                android:focusable="false"
+                android:clickable="false"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp"/>
+
+            <LinearLayout
+                android:id="@+id/modeSelectionLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
 
                 <Button
-                    android:id="@+id/setPickupButton"
+                    android:id="@+id/buttonSelectPickupMode"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Set Pickup"
-                    style="?attr/materialButtonOutlinedStyle"
+                    android:text="Set Pickup Point"
                     android:layout_marginEnd="4dp"/>
 
                 <Button
-                    android:id="@+id/setDropoffButton"
+                    android:id="@+id/buttonSelectDropoffMode"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Set Drop-off"
-                    style="?attr/materialButtonOutlinedStyle"
+                    android:text="Set Drop-off Point"
                     android:layout_marginStart="4dp"/>
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/pickupLocationTextView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Set pickup location"
-                android:padding="8dp"
-                android:drawableStart="@drawable/ic_maps_marker_start"
-                android:drawablePadding="8dp"
-                android:gravity="center_vertical"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/dropoffLocationTextView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Set drop-off location"
-                android:padding="8dp"
-                android:drawableStart="@drawable/ic_maps_marker_end"
-                android:drawablePadding="8dp"
-                android:gravity="center_vertical"
-                android:textSize="16sp"
-                android:layout_marginTop="8dp"/>
-
             <Button
-                android:id="@+id/confirmBookingButton"
+                android:id="@+id/buttonConfirmBooking"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Confirm Booking"
                 android:layout_marginTop="16dp"/>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+
+    <!-- Finding Driver Overlay -->
+    <LinearLayout
+        android:id="@+id/findingDriverLayout"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#80000000"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/progressBarFindingDriver"
+            style="?android:attr/progressBarStyleLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:indeterminate="true" />
+
+        <TextView
+            android:id="@+id/textViewFindingDriver"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Finding the nearest driver available for you..."
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- Generic Progress Bar Overlay (for other waiting states) -->
+    <ProgressBar
+        android:id="@+id/progressBarWait"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="gone"/>
+
+    <!-- No Drivers Available Overlay -->
+    <LinearLayout
+        android:id="@+id/noDriversLayout"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#A0FFFFFF"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="gone">
+
+        <TextView
+            android:id="@+id/textViewNoDriversMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="No drivers available right now."
+            android:textSize="18sp"
+            android:layout_marginBottom="16dp"/>
+        <Button
+            android:id="@+id/buttonShowOnMap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="OK (Show Map)"/>
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

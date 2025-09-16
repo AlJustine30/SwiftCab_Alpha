@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.glide) // Kept this, assuming it's from version catalog
     implementation("com.google.android.gms:play-services-maps:18.2.0") // Added Google Maps SDK
     implementation("com.google.android.gms:play-services-location:21.3.0") // Added Location SDK
+    implementation("com.google.android.libraries.places:places:3.5.0") // ADDED THIS LINE
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.btsi.swiftcabalpha">
 
+    <!-- Correctly placed permissions -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -13,6 +16,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SwiftCabAlpha"
         tools:ignore="GoogleAppIndexingWarning">
+
+        <!-- Corrected API Key meta-data -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBpIuViGza83ArXqJdfv-wcnVfoDr4LhAM" />
 
         <activity
             android:name=".MainActivity"
@@ -39,9 +47,12 @@
             android:name=".ProfileActivity"
             android:exported="false" />
 
-        <!-- Added DriverDashboardActivity declaration -->
         <activity
             android:name=".DriverDashboardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".BookingActivity"
             android:exported="false" />
 
     </application>

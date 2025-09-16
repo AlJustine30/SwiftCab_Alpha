@@ -153,7 +153,7 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun uploadImageAndSaveProfile(userId: String, fullName: String, mobileNumber: String, imageUri: Uri) {
-        val fileName = "profile_images/${UUID.randomUUID()}.jpg"
+        val fileName = "profile_images/${userId}/${UUID.randomUUID()}.jpg" // Changed this line
         val imageRef = storage.reference.child(fileName)
 
         imageRef.putFile(imageUri)
