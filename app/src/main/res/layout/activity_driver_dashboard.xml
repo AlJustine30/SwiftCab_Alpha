@@ -150,7 +150,7 @@
         app:itemTextColor="@color/nav_item_text_color_selector"
         app:itemIconTint="@color/nav_item_icon_tint_selector"
         app:itemShapeAppearanceOverlay="@style/ShapeAppearance.App.SmallComponent"
-        android:itemPaddingTop="8dp"
-        android:itemPaddingBottom="8dp" />
+        app:itemPaddingTop="8dp"
+        app:itemPaddingBottom="8dp" />
 
 </androidx.drawerlayout.widget.DrawerLayout>

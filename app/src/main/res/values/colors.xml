@@ -14,4 +14,5 @@
 
     <color name="my_button_active_color">#FF018786</color> <!-- Using existing teal_700 -->
     <color name="my_button_inactive_color">#D3D3D3</color> <!-- Light Gray -->
+    <color name="divider_color">#1F000000</color> <!-- 12% black - a common divider color -->
 </resources>

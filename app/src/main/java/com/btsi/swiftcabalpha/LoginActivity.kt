@@ -8,20 +8,20 @@ import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore // Added Firestore import
+import com.google.firebase.firestore.FirebaseFirestore
 import com.github.ybq.android.spinkit.SpinKitView
 
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
-    private lateinit var db: FirebaseFirestore // Added Firestore instance
+    private lateinit var db: FirebaseFirestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
         auth = FirebaseAuth.getInstance()
-        db = FirebaseFirestore.getInstance() // Initialize Firestore
+        db = FirebaseFirestore.getInstance()
 
         val emailEditText = findViewById<TextInputEditText>(R.id.emailEditText)
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
@@ -50,47 +50,73 @@ class LoginActivity : AppCompatActivity() {
                         val firebaseUser = auth.currentUser
                         firebaseUser?.let { user ->
                             val userId = user.uid
+
+                            // First, check if the user is in the 'users' (Passenger) collection
                             db.collection("users").document(userId).get()
-                                .addOnSuccessListener { documentSnapshot ->
-                                    progressBar.visibility = android.view.View.GONE
-                                    loginButton.isEnabled = true
-                                    if (documentSnapshot.exists()) {
-                                        val role = documentSnapshot.getString("role")
-                                        when (role) {
-                                            "Driver" -> {
-                                                Toast.makeText(this, "Driver Login successful", Toast.LENGTH_SHORT).show()
+                                .addOnSuccessListener { passengerDocument ->
+                                    if (passengerDocument.exists()) {
+                                        // User found in 'users' collection, treat as Passenger
+                                        progressBar.visibility = android.view.View.GONE
+                                        loginButton.isEnabled = true
+                                        Toast.makeText(this, "Passenger Login successful", Toast.LENGTH_SHORT).show()
+                                        val intent = Intent(this, HomeActivity::class.java)
+                                        startActivity(intent)
+                                        finish()
+                                    } else {
+                                        // User not found in 'users', check 'drivers' (Driver) collection
+                                        db.collection("drivers").document(userId).get()
+                                            .addOnSuccessListener { driverDocument ->
+                                                progressBar.visibility = android.view.View.GONE
+                                                loginButton.isEnabled = true
+                                                if (driverDocument.exists()) {
+                                                    // User found in 'drivers' collection, treat as Driver
+                                                    Toast.makeText(this, "Driver Login successful", Toast.LENGTH_SHORT).show()
+                                                    val intent = Intent(this, DriverDashboardActivity::class.java)
+                                                    startActivity(intent)
+                                                    finish()
+                                                } else {
+                                                    // User not found in 'users' or 'drivers'
+                                                    Toast.makeText(this, "User data not found. Please register or contact support.", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                            .addOnFailureListener { e_driver ->
+                                                // Failed to check 'drivers' collection
+                                                progressBar.visibility = android.view.View.GONE
+                                                loginButton.isEnabled = true
+                                                Toast.makeText(this, "Error checking driver data: ${e_driver.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                    }
+                                }
+                                .addOnFailureListener { e_passenger ->
+                                    // Failed to check 'users' collection, but still try 'drivers' as a fallback
+                                    // You might want to log e_passenger.message or handle it differently
+                                    db.collection("drivers").document(userId).get()
+                                        .addOnSuccessListener { driverDocument ->
+                                            progressBar.visibility = android.view.View.GONE
+                                            loginButton.isEnabled = true
+                                            if (driverDocument.exists()) {
+                                                Toast.makeText(this, "Driver Login successful (after user check error)", Toast.LENGTH_SHORT).show()
                                                 val intent = Intent(this, DriverDashboardActivity::class.java)
                                                 startActivity(intent)
                                                 finish()
-                                            }
-                                            "Passenger" -> {
-                                                Toast.makeText(this, "Passenger Login successful", Toast.LENGTH_SHORT).show()
-                                                val intent = Intent(this, HomeActivity::class.java)
-                                                startActivity(intent)
-                                                finish()
-                                            }
-                                            else -> {
-                                                // Role is null, not 'Driver', or not 'Passenger'
-                                                Toast.makeText(this, "User role not defined or unknown.", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                Toast.makeText(this, "Error checking user data and user not found as driver. ${e_passenger.message}", Toast.LENGTH_LONG).show()
                                             }
                                         }
-                                    } else {
-                                        // User document doesn't exist in Firestore for this UID
-                                        Toast.makeText(this, "User data not found. Please contact support.", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                                .addOnFailureListener { e ->
-                                    progressBar.visibility = android.view.View.GONE
-                                    loginButton.isEnabled = true
-                                    Toast.makeText(this, "Error fetching user role: ${e.message}", Toast.LENGTH_LONG).show()
+                                        .addOnFailureListener { e_driver_fallback ->
+                                             progressBar.visibility = android.view.View.GONE
+                                             loginButton.isEnabled = true
+                                             Toast.makeText(this, "Error checking both user and driver data: ${e_driver_fallback.message}", Toast.LENGTH_LONG).show()
+                                        }
                                 }
                         } ?: run {
-                            // Should not happen if task.isSuccessful is true and user is not null
+                            // Should not happen if task.isSuccessful is true and firebaseUser is not null
                             progressBar.visibility = android.view.View.GONE
                             loginButton.isEnabled = true
-                            Toast.makeText(this, "Login successful, but user data is null.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, "Login successful, but user data is unexpectedly null.", Toast.LENGTH_LONG).show()
                         }
                     } else {
+                        // Authentication failed
                         progressBar.visibility = android.view.View.GONE
                         loginButton.isEnabled = true
                         Toast.makeText(this, "Authentication failed: ${task.exception?.message}", Toast.LENGTH_LONG).show()
@@ -104,7 +130,7 @@ class LoginActivity : AppCompatActivity() {
         }
 
         backToWelcomeTextView.setOnClickListener {
-            finish()
+            finish() // Goes back to the previous activity, presumably WelcomeActivity
         }
     }
 }
