@@ -12,4 +12,18 @@
     </style>
 
     <style name="Theme.SwiftCabAlpha" parent="Base.Theme.SwiftCabAlpha" />
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <!-- ... other theme attributes ... -->
+        <item name="navigationViewStyle">@style/MyNavigationViewStyle</item>
+    </style>
+
+    <style name="MyNavigationViewStyle" parent="Widget.MaterialComponents.NavigationView.Light">
+        <item name="android:listDivider">@color/divider_color</item> <!-- Example: add dividers -->
+        <item name="itemBackground">@drawable/nav_item_background</item>
+        <item name="itemTextColor">@color/your_custom_text_color_selector</item>
+        <item name="itemIconTint">@color/your_custom_icon_tint_selector</item>
+        <!-- You might also want to adjust padding -->
+        <item name="itemPaddingStart">32dp</item>
+        <item name="itemPaddingEnd">32dp</item>
+    </style>
 </resources>
