@@ -45,7 +45,7 @@ class BookingHistoryAdapter(private val bookingHistoryList: List<BookingRequest>
         val textViewPickup: TextView = itemView.findViewById(R.id.textViewHistoryPickup)
         val textViewDestination: TextView = itemView.findViewById(R.id.textViewHistoryDestination)
         val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
-        // Uncomment if you add fare
+        // Uncomment if adding fare
         // val textViewPrice: TextView = itemView.findViewById(R.id.textViewHistoryPrice)
     }
 }

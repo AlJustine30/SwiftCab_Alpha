@@ -12,7 +12,6 @@ import com.btsi.swiftcabalpha.models.BookingRequest // Corrected import
 class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRequest>) :
     RecyclerView.Adapter<DriverBookingHistoryAdapter.ViewHolder>() {
 
-    // Consider a more robust date formatting approach for production
     private val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -38,7 +37,7 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         holder.pickupTextView.text = "From: ${booking.pickupAddress ?: "N/A"}"
         holder.destinationTextView.text = "To: ${booking.destinationAddress ?: "N/A"}"
         holder.statusTextView.text = "Status: ${booking.status ?: "N/A"}"
-        // holder.priceTextView.text = String.format("Fare: $%.2f", booking.fare ?: 0.0) // If you add fare
+        // holder.priceTextView.text = String.format("Fare: $%.2f", booking.fare ?: 0.0) // to be added
         // holder.priceTextView.visibility = if (booking.fare != null) View.VISIBLE else View.GONE
     }
 

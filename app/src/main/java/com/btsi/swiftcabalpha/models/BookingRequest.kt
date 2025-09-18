@@ -16,7 +16,7 @@ data class BookingRequest(
     var status: String = "PENDING", // PENDING, ACCEPTED, DECLINED, DRIVER_ARRIVED, ON_TRIP, COMPLETED, CANCELLED_RIDER, CANCELLED_DRIVER
     var driverId: String? = null,
     var driverName: String? = null,
-    var driverVehicleDetails: String? = null, // e.g., "Toyota Vios - ABC 123"
+    var driverVehicleDetails: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     var lastUpdateTime: Long = System.currentTimeMillis()
 ) {

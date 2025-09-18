@@ -1,8 +1,8 @@
-package com.btsi.swiftcabalpha.models // Or your chosen package for models
+package com.btsi.swiftcabalpha.models
 
 import com.google.firebase.database.IgnoreExtraProperties
 
-@IgnoreExtraProperties // Good practice: Ignores any extra fields from Firebase that are not in your class
+@IgnoreExtraProperties
 data class RideOffer(
     val bookingId: String? = null,
     val userId: String? = null,

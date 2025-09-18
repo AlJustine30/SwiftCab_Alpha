@@ -131,7 +131,7 @@ class LoginActivity : AppCompatActivity() {
         }
 
         backToWelcomeTextView.setOnClickListener {
-            finish() // Goes back to the previous activity, presumably WelcomeActivity
+            finish() // Goes back to the previous activity
         }
     }
 }

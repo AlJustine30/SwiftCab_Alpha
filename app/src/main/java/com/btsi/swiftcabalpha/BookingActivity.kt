@@ -23,7 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.btsi.swiftcabalpha.models.BookingRequest // Corrected import
+import com.btsi.swiftcabalpha.models.BookingRequest
 import com.google.android.gms.common.api.Status
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -89,7 +89,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var pickupLocationLatLng: LatLng? = null
     private var destinationLatLng: LatLng? = null
 
-    private var isPickupMode = true // true for pickup, false for dropoff
+    private var isPickupMode = true
 
     private lateinit var progressBarWait: ProgressBar
     private lateinit var noDriversLayout: LinearLayout
@@ -102,7 +102,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var textViewInFindingOverlay: TextView
 
     // UI Elements for Booking Status Card
-    private lateinit var infoCardView: MaterialCardView // The original input card
+    private lateinit var infoCardView: MaterialCardView
     private lateinit var bookingStatusCardView: MaterialCardView
     private lateinit var textViewBookingStatusHeader: TextView
     private lateinit var textViewDriverNameStatus: TextView
@@ -203,7 +203,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         Log.d(TAG, "Map is ready.")
 
         mMap?.uiSettings?.isZoomControlsEnabled = true
-        mMap?.uiSettings?.isMyLocationButtonEnabled = false // Assuming custom button for this
+        mMap?.uiSettings?.isMyLocationButtonEnabled = false
 
         mMap?.setOnMapClickListener { latLng ->
             val title = if (isPickupMode) "Tapped Pickup Location" else "Tapped Destination Location"
@@ -312,7 +312,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (currentBookingId != null &&
                 (findingDriverOverlayLayout.visibility == View.VISIBLE || bookingStatusCardView.visibility == View.VISIBLE)) {
                 // Allow cancellation if looking for driver or if ride is confirmed but not started (depends on buttonCancelRideRider logic)
-                // For now, simple back press might just cancel if in PENDING state during search
+                // For now, simple back press to cancel if in PENDING state during search
                 if (textViewInFindingOverlay.text.toString() == getString(R.string.finding_driver_message) ||
                     textViewInFindingOverlay.text.toString() == getString(R.string.still_searching_driver)) {
                     cancelBookingRequest(STATUS_CANCELLED_BY_RIDER)
@@ -324,7 +324,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             // Implement cancellation logic if ride is ACCEPTED or ON_TRIP (if allowed)
             // For now, let's assume it cancels if ride is accepted but not yet ON_TRIP
             if (currentBookingId != null && bookingStatusCardView.visibility == View.VISIBLE) {
-                 cancelBookingRequest(STATUS_CANCELLED_BY_RIDER) // Or a specific status like CANCELLED_AFTER_ACCEPTANCE
+                 cancelBookingRequest(STATUS_CANCELLED_BY_RIDER)
             }
         }
 
@@ -403,7 +403,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     STATUS_NO_DRIVERS_FOUND -> {
                         findingDriverOverlayLayout.visibility = View.GONE
                         bookingStatusCardView.visibility = View.GONE
-                        infoCardView.visibility = View.GONE // Keep inputs hidden, show noDriversLayout
+                        infoCardView.visibility = View.GONE // Keep inputs hidden
                         noDriversLayout.visibility = View.VISIBLE
                         textViewNoDriversMessage.text = getString(R.string.no_drivers_found_message)
                         resetToInitialBookingState() // Resets currentBookingId and listener

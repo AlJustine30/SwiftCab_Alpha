@@ -18,7 +18,7 @@ import com.google.android.material.navigation.NavigationView
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
-import com.btsi.swiftcabalpha.models.BookingRequest // Corrected import
+import com.btsi.swiftcabalpha.models.BookingRequest
 
 class DriverDashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
