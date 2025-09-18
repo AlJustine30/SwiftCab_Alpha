@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardElevation="4dp"
+    app:cardCornerRadius="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/textViewDriverHistoryDate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Date: Jan 01, 2024"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/textViewDriverHistoryRiderName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rider: Rider Name"
+            android:layout_marginTop="4dp"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/textViewDriverHistoryPickup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="From: Pickup Address" />
+
+        <TextView
+            android:id="@+id/textViewDriverHistoryDestination"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="To: Destination Address" />
+
+        <TextView
+            android:id="@+id/textViewDriverHistoryStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Status: COMPLETED"
+            android:textStyle="italic" />
+
+        <!-- You can add fare/price later if it's part of BookingRequest -->
+        <TextView
+            android:id="@+id/textViewDriverHistoryPrice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" 
+            android:text="Fare: $0.00" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

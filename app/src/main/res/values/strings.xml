@@ -7,4 +7,70 @@
     <string name="book_now">Book Now</string>
     <string name="profile_image_desc">User profile image</string>
     <string name="google_maps_key">AIzaSyBpIuViGza83ArXqJdfv-wcnVfoDr4LhAM</string>
+    <string name="submitting_request">Submitting your request…</string>
+    <string name="finding_driver_message">Request submitted! Finding a driver near you…</string>
+    <string name="still_searching_driver">Still searching for a driver…</string>
+    <string name="no_drivers_found_message">No drivers available at the moment. Please try again later.</string>
+    <string name="driver_cancelled_booking">Driver had to cancel. Please try booking again.</string>
+    <string name="booking_accepted_message">Your ride is confirmed! Driver %1$s is on the way. Vehicle: %2$s</string>
+    <string name="booking_completed_message">Ride completed. Thank you!</string>
+    <string name="booking_cancelled_by_rider_message">Booking cancelled.</string>
+    <string name="unknown_booking_status_message">Booking status updated. Please check details.</string>
+
+    <string name="status_offline">Offline</string>
+    <string name="status_online">Online</string>
+    <string name="new_booking_request_title">New Booking Request!</string>
+    <string name="pickup_loading">Pickup: Loading...</string>
+    <string name="destination_loading">Destination: Loading...</string>
+    <string name="accept_button">Accept</string>
+    <string name="decline_button">Decline</string>
+    <string name="booking_accepted_toast">Booking Accepted! You will be notified with details.</string>
+    <string name="booking_declined_toast">Booking Declined.</string>
+    <string name="error_accepting_booking">Error accepting booking. Please try again.</string>
+
+    <string name="status_online_toast">You are now Online</string>
+    <string name="status_offline_toast">You are now Offline</string>
+    <string name="error_accepting_booking_generic">Cannot accept booking at this moment.</string>
+    <string name="booking_cancelled_or_expired">Booking was cancelled or expired.</string>
+    <string name="error_listening_for_bookings">Error listening for new bookings.</string>
+    <string name="pickup_prefix">Pickup: %1$s</string>
+    <string name="destination_prefix">Destination: %1$s</string>
+
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="nav_header_driver_name_placeholder">Driver Name</string>
+    <string name="nav_header_driver_email_placeholder">driver@example.com</string>
+
+    <string name="active_booking_title">Active Booking</string>
+    <string name="navigate_to_pickup">Navigate to Pickup</string>
+    <string name="start_trip">Start Trip</string>
+    <string name="end_trip">End Trip</string>
+    <string name="error_updating_booking_status">Error updating booking status.</string>
+    <string name="trip_started_toast">Trip Started!</string>
+    <string name="trip_ended_toast">Trip Ended. Well done!</string>
+    <string name="finding_active_booking">Checking for active booking...</string>
+    <string name="no_active_booking_found">No active booking found.</string>
+    <string name="rider_name_prefix">Rider: %1$s</string>
+
+    <string name="status_header_ride_confirmed">Ride Confirmed!</string>
+    <string name="status_message_driver_en_route">Driver is on the way.</string>
+    <string name="status_header_trip_in_progress">Trip in Progress</string>
+    <string name="status_message_trip_en_route">You are on your way to the destination.</string>
+    <string name="driver_info_prefix">Driver: %1$s</string>
+    <string name="vehicle_info_prefix">Vehicle: %1$s</string>
+    <string name="archiving_booking_to_history">Archiving booking to history...</string>
+    <string name="booking_archived_successfully">Booking archived to history.</string>
+    <string name="failed_to_archive_booking">Failed to archive booking.</string>
+    <string name="button_cancel_ride">Cancel Ride</string>
+
+    <!-- Strings for Rider Booking History -->
+    <string name="booking_history_title">Booking History</string>
+    <string name="title_activity_booking_history">Booking History</string> <!-- For AndroidManifest label -->
+    <string name="no_booking_history_found">No booking history found.</string>
+    <string name="history_date_prefix">Date: </string>
+    <string name="history_driver_prefix">Driver: </string>
+    <string name="history_pickup_prefix">From: </string>
+    <string name="history_destination_prefix">To: </string>
+    <string name="history_status_prefix">Status: </string>
+    <string name="title_activity_driver_booking_history">Driver Booking History</string> <!-- For AndroidManifest label -->
+
 </resources>

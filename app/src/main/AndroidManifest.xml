@@ -55,6 +55,18 @@
             android:name=".BookingActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".BookingHistoryActivity"
+            android:exported="false"
+            android:label="@string/title_activity_booking_history" 
+            android:parentActivityName=".HomeActivity" />
+            
+        <activity 
+            android:name=".DriverBookingHistoryActivity"
+            android:exported="false"
+            android:label="@string/title_activity_driver_booking_history" 
+            android:parentActivityName=".DriverDashboardActivity" />
+
     </application>
 
 </manifest>

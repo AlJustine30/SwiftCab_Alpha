@@ -60,6 +60,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-maps:18.2.0") // Added Google Maps SDK
     implementation("com.google.android.gms:play-services-location:21.3.0") // Added Location SDK
     implementation("com.google.android.libraries.places:places:3.5.0") // ADDED THIS LINE
+    implementation("com.facebook.shimmer:shimmer:0.5.0") // Added Shimmer dependency
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -16,6 +16,7 @@ import com.bumptech.glide.Glide
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.btsi.swiftcabalpha.BookingHistoryActivity // Added import
 
 class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
@@ -142,6 +143,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.nav_booking_history -> {
+                startActivity(Intent(this, BookingHistoryActivity::class.java))
+            }
             R.id.nav_logout -> {
                 auth.signOut()
                 val intent = Intent(this, LoginActivity::class.java)

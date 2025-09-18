@@ -3,6 +3,13 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:showIn="navigation_view">
 
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_booking_history"
+            android:icon="@drawable/ic_history"
+            android:title="Booking History" />
+    </group>
+
     <!-- Group for actions like logout -->
     <group android:id="@+id/group_logout" android:checkableBehavior="none">
         <item

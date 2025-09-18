@@ -39,7 +39,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:layout_marginEnd="16dp"
-                android:text="Offline"
+                android:text="@string/status_offline"
                 android:textSize="16sp"
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintEnd_toEndOf="parent" />
@@ -58,14 +58,147 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toStartOf="@id/switch_driver_status"/>
 
+            <!-- New Booking Request Layout -->
+            <LinearLayout
+                android:id="@+id/booking_request_layout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:background="#E0E0E0"
+                android:visibility="gone"
+                tools:visibility="visible"
+                app:layout_constraintTop_toBottomOf="@id/textViewDriverWelcome"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/new_booking_request_title"
+                    android:textSize="18sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/textViewPickupLocationInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/pickup_loading"/>
+
+                <TextView
+                    android:id="@+id/textViewDestinationLocationInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/destination_loading"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="16dp">
+
+                    <Button
+                        android:id="@+id/buttonAcceptBooking"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/accept_button"
+                        android:layout_marginEnd="8dp"
+                        android:layout_marginRight="8dp" />
+
+                    <Button
+                        android:id="@+id/buttonDeclineBooking"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/decline_button"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Active Booking Details Layout -->
+            <LinearLayout
+                android:id="@+id/activeBookingLayout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:background="#D0D0FF"
+                android:visibility="gone"
+                tools:visibility="gone"
+                app:layout_constraintTop_toBottomOf="@id/booking_request_layout"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
+
+                <TextView
+                    android:id="@+id/textViewActiveBookingTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/active_booking_title"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp"/>
+
+                <TextView
+                    android:id="@+id/textViewActivePickupInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pickup: Loading..."
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:id="@+id/textViewActiveDestinationInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Destination: Loading..."
+                    android:layout_marginBottom="12dp"/>
+                
+                <TextView
+                    android:id="@+id/textViewActiveRiderInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Rider: Loading..."
+                    android:layout_marginBottom="12dp"
+                    android:visibility="gone"/>
+
+                <Button
+                    android:id="@+id/buttonNavigateToPickup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/navigate_to_pickup"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/buttonStartTrip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/start_trip"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/buttonEndTrip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/end_trip"
+                    android:visibility="gone"/>
+            </LinearLayout>
+
+            <!--
             <androidx.core.widget.NestedScrollView
                 android:id="@+id/nestedScrollView_driver_content"
                 android:layout_width="0dp"
                 android:layout_height="0dp"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="8dp"
-                app:layout_constraintTop_toBottomOf="@id/switch_driver_status"
-                app:layout_constraintBottom_toTopOf="@+id/button_view_map"
+                app:layout_constraintTop_toBottomOf="@id/activeBookingLayout"
+                app:layout_constraintBottom_toTopOf="@id/button_view_map"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 android:fillViewport="true">
@@ -77,50 +210,9 @@
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp">
 
-                    <androidx.cardview.widget.CardView
-                        android:id="@+id/card_current_ride_request"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="4dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Current Ride Request"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/textView_ride_request_details"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="No active requests."
-                                android:textSize="16sp" />
-
-                            <Button
-                                android:id="@+id/button_accept_ride"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:text="Accept Ride"
-                                android:visibility="gone"
-                                tools:visibility="visible" />
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-
-                    <!-- NavigationView was here, it has been moved -->
-                    <!-- Earnings CardView has been removed -->
-
-                </LinearLayout>
+                    </LinearLayout>
             </androidx.core.widget.NestedScrollView>
+            -->
 
             <Button
                 android:id="@+id/button_view_map"

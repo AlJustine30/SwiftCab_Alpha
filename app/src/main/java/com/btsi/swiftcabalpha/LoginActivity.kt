@@ -10,6 +10,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.github.ybq.android.spinkit.SpinKitView
+import com.btsi.swiftcabalpha.DriverDashboardActivity // Added import
 
 class LoginActivity : AppCompatActivity() {
 
@@ -51,11 +52,11 @@ class LoginActivity : AppCompatActivity() {
                         firebaseUser?.let { user ->
                             val userId = user.uid
 
-                            // First, check if the user is in the 'users' (Passenger) collection
+                            // First, check if the user is in the \'users\' (Passenger) collection
                             db.collection("users").document(userId).get()
                                 .addOnSuccessListener { passengerDocument ->
                                     if (passengerDocument.exists()) {
-                                        // User found in 'users' collection, treat as Passenger
+                                        // User found in \'users\' collection, treat as Passenger
                                         progressBar.visibility = android.view.View.GONE
                                         loginButton.isEnabled = true
                                         Toast.makeText(this, "Passenger Login successful", Toast.LENGTH_SHORT).show()
@@ -63,24 +64,24 @@ class LoginActivity : AppCompatActivity() {
                                         startActivity(intent)
                                         finish()
                                     } else {
-                                        // User not found in 'users', check 'drivers' (Driver) collection
+                                        // User not found in \'users\', check \'drivers\' (Driver) collection
                                         db.collection("drivers").document(userId).get()
                                             .addOnSuccessListener { driverDocument ->
                                                 progressBar.visibility = android.view.View.GONE
                                                 loginButton.isEnabled = true
                                                 if (driverDocument.exists()) {
-                                                    // User found in 'drivers' collection, treat as Driver
+                                                    // User found in \'drivers\' collection, treat as Driver
                                                     Toast.makeText(this, "Driver Login successful", Toast.LENGTH_SHORT).show()
                                                     val intent = Intent(this, DriverDashboardActivity::class.java)
                                                     startActivity(intent)
                                                     finish()
                                                 } else {
-                                                    // User not found in 'users' or 'drivers'
+                                                    // User not found in \'users\' or \'drivers\'
                                                     Toast.makeText(this, "User data not found. Please register or contact support.", Toast.LENGTH_LONG).show()
                                                 }
                                             }
                                             .addOnFailureListener { e_driver ->
-                                                // Failed to check 'drivers' collection
+                                                // Failed to check \'drivers\' collection
                                                 progressBar.visibility = android.view.View.GONE
                                                 loginButton.isEnabled = true
                                                 Toast.makeText(this, "Error checking driver data: ${e_driver.message}", Toast.LENGTH_LONG).show()
@@ -88,7 +89,7 @@ class LoginActivity : AppCompatActivity() {
                                     }
                                 }
                                 .addOnFailureListener { e_passenger ->
-                                    // Failed to check 'users' collection, but still try 'drivers' as a fallback
+                                    // Failed to check \'users\' collection, but still try \'drivers\' as a fallback
                                     // You might want to log e_passenger.message or handle it differently
                                     db.collection("drivers").document(userId).get()
                                         .addOnSuccessListener { driverDocument ->
