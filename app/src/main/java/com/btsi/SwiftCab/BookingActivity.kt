@@ -1,4 +1,4 @@
-package com.btsi.swiftcabalpha
+package com.btsi.SwiftCab
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -23,7 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.btsi.swiftcabalpha.models.BookingRequest
+import com.btsi.SwiftCab.models.BookingRequest
 import com.google.android.gms.common.api.Status
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices

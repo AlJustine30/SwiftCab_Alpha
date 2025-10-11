@@ -1,4 +1,4 @@
-package com.btsi.swiftcabalpha.models
+package com.btsi.SwiftCab.models
 
 import com.google.android.gms.maps.model.LatLng // Using Google Maps LatLng directly
 

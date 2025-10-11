@@ -1,4 +1,4 @@
-package com.btsi.swiftcabalpha
+package com.btsi.SwiftCab
 
 import android.app.Activity
 import android.app.AlertDialog

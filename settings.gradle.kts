@@ -20,6 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SwiftCab Alpha"
+rootProject.name = "SwifCab"
 include(":app")
- 

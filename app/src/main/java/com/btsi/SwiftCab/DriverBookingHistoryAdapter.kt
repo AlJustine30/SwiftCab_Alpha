@@ -1,4 +1,4 @@
-package com.btsi.swiftcabalpha
+package com.btsi.SwiftCab
 
 import android.view.LayoutInflater
 import android.view.View
@@ -7,7 +7,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import java.text.SimpleDateFormat
 import java.util.*
-import com.btsi.swiftcabalpha.models.BookingRequest // Corrected import
+import com.btsi.SwiftCab.models.BookingRequest // Corrected import
 
 class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRequest>) :
     RecyclerView.Adapter<DriverBookingHistoryAdapter.ViewHolder>() {

@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.btsi.swiftcabalpha"
+    namespace = "com.btsi.SwiftCab"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.btsi.swiftcabalpha"
+        applicationId = "com.btsi.swifcab"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

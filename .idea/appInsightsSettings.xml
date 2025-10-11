@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="com.btsi.swiftcabalpha" />
-                  <option name="mobileSdkAppId" value="1:323933258887:android:5b1d43382d1e483661a422" />
-                  <option name="projectId" value="swiftcab-de564" />
-                  <option name="projectNumber" value="323933258887" />
+                  <option name="appId" value="PLACEHOLDER" />
+                  <option name="mobileSdkAppId" value="" />
+                  <option name="projectId" value="" />
+                  <option name="projectNumber" value="" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

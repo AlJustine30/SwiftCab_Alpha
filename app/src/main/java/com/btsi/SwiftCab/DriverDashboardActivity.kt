@@ -1,7 +1,6 @@
-package com.btsi.swiftcabalpha
+package com.btsi.SwiftCab
 
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
@@ -11,14 +10,23 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
+import com.btsi.SwiftCab.DriverBookingHistoryActivity
+import com.btsi.SwiftCab.LoginActivity
+import com.btsi.SwiftCab.models.BookingRequest
+import com.btsi.SwiftCab.R
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.*
-import com.btsi.swiftcabalpha.models.BookingRequest
+import com.google.firebase.database.ChildEventListener
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 
 class DriverDashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
@@ -459,7 +467,7 @@ class DriverDashboardActivity : AppCompatActivity(), NavigationView.OnNavigation
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.nav_driver_dashboard_home -> { /* Already here or Toast */ }
-            R.id.nav_driver_profile -> Toast.makeText(this, "Profile Clicked", Toast.LENGTH_SHORT).show()
+            R.id.nav_driver_profile -> Toast.makeText(this, "HELLO WORLD", Toast.LENGTH_SHORT).show()
             R.id.nav_driver_booking_history -> {
                 startActivity(Intent(this, DriverBookingHistoryActivity::class.java))
             }

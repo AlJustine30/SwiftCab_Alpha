@@ -1,4 +1,4 @@
-package com.btsi.swiftcabalpha
+package com.btsi.SwiftCab
 
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
@@ -10,7 +10,6 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.github.ybq.android.spinkit.SpinKitView
-import com.btsi.swiftcabalpha.DriverDashboardActivity // Added import
 
 class LoginActivity : AppCompatActivity() {
 
