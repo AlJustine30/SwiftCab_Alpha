@@ -1,4 +1,4 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 class DriverProfile {
 

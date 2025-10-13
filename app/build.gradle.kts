@@ -1,5 +1,3 @@
-import org.gradle.kotlin.dsl.implementation
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.btsi.SwiftCab"
+    namespace = "com.btsi.swiftcab"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.btsi.swifcab"
+        applicationId = "com.btsi.swiftcab"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -36,6 +34,11 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/java")
+        }
+    }
 }
 
 dependencies {
@@ -55,6 +58,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-database") // Changed this line
+    implementation("com.google.firebase:firebase-functions-ktx") // ADDED THIS LINE
     implementation("com.github.ybq:android-spinkit:1.4.0")
     implementation(libs.glide) // Kept this, assuming it's from version catalog
     implementation("com.google.android.gms:play-services-maps:18.2.0") // Added Google Maps SDK

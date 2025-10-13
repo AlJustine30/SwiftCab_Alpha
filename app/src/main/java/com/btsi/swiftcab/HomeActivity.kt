@@ -1,7 +1,8 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.MenuItem
 import android.widget.Button
 import android.widget.ImageView
@@ -16,11 +17,17 @@ import com.bumptech.glide.Glide
 import com.google.android.material.navigation.NavigationView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 
 class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
+    private companion object {
+        private const val TAG = "HomeActivity"
+    }
+
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
+    private var userListener: ListenerRegistration? = null
 
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var navView: NavigationView
@@ -31,6 +38,10 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var headerProfileImage: ImageView
     private lateinit var headerUserName: TextView
     private lateinit var headerEditProfileButton: Button
+
+    // Views in main content
+    private lateinit var userNameTextView: TextView
+    private lateinit var userEmailTextView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,8 +55,6 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         drawerLayout = findViewById(R.id.drawer_layout_home)
         navView = findViewById(R.id.nav_view_home)
-
-        // Set navigation item selected listener
         navView.setNavigationItemSelectedListener(this)
 
         toggle = ActionBarDrawerToggle(
@@ -69,13 +78,13 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         headerEditProfileButton.setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
-            drawerLayout.closeDrawers() // Closes drawer after click
+            drawerLayout.closeDrawers()
         }
 
-        val userNameTextView = findViewById<TextView>(R.id.userNameTextView)
-        val userEmailTextView = findViewById<TextView>(R.id.userEmailTextView)
+        userNameTextView = findViewById(R.id.userNameTextView)
+        userEmailTextView = findViewById(R.id.userEmailTextView)
 
-        loadUserDataInDrawerAndContent(userNameTextView, userEmailTextView)
+        setupUserDataListener()
 
         val bookNowButton = findViewById<Button>(R.id.BookNowButton)
         bookNowButton.setOnClickListener {
@@ -83,54 +92,46 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    private fun loadUserDataInDrawerAndContent(
-        userNameTextViewInContent: TextView,
-        userEmailTextViewInContent: TextView
-    ) {
+    private fun setupUserDataListener() {
         val currentUser = auth.currentUser
-        if (currentUser != null) {
-            userEmailTextViewInContent.text = "User Email: ${currentUser.email}"
-
-            db.collection("users").document(currentUser.uid).get()
-                .addOnSuccessListener { document ->
-                    if (document != null && document.exists()) {
-                        val fullName = document.getString("fullName")
-                        headerUserName.text = fullName ?: "User Name"
-                        userNameTextViewInContent.text = "Welcome, ${fullName ?: "User"}"
-
-                        val profileImageUrl = document.getString("profileImageUrl")
-                        if (profileImageUrl != null && profileImageUrl.isNotEmpty()) {
-                            Glide.with(this@HomeActivity)
-                                .load(profileImageUrl)
-                                .placeholder(R.drawable.default_profile)
-                                .error(R.drawable.default_profile)
-                                .circleCrop()
-                                .into(headerProfileImage)
-                        } else {
-                            headerProfileImage.setImageResource(R.drawable.default_profile)
-                        }
-                    } else {
-                        headerUserName.text = "User Name"
-                        userNameTextViewInContent.text = "Welcome, User"
-                        headerProfileImage.setImageResource(R.drawable.default_profile)
-                        Toast.makeText(this, "User data not found in Firestore", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .addOnFailureListener { exception ->
-                    headerUserName.text = "User Name"
-                    userNameTextViewInContent.text = "Welcome, User"
-                    headerProfileImage.setImageResource(R.drawable.swiftcab)
-                    Toast.makeText(
-                        this,
-                        "Error fetching user data: ${exception.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-        } else {
+        if (currentUser == null) {
             Toast.makeText(this, "Not logged in", Toast.LENGTH_SHORT).show()
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
+            return
         }
+
+        userEmailTextView.text = "User Email: ${currentUser.email}"
+
+        userListener = db.collection("users").document(currentUser.uid)
+            .addSnapshotListener(this) { snapshot, e ->
+                if (e != null) {
+                    Log.w(TAG, "Listen failed.", e)
+                    Toast.makeText(this, "Error fetching user data: ${e.message}", Toast.LENGTH_LONG).show()
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    Log.d(TAG, "User data updated.")
+                    // Use "name" to match ProfileActivity, not "fullName"
+                    val name = snapshot.getString("name")
+                    headerUserName.text = name ?: "User Name"
+                    userNameTextView.text = "Welcome, ${name ?: "User"}"
+
+                    val profileImageUrl = snapshot.getString("profileImageUrl")
+                    Glide.with(this@HomeActivity)
+                        .load(profileImageUrl)
+                        .placeholder(R.drawable.default_profile)
+                        .error(R.drawable.default_profile)
+                        .circleCrop()
+                        .into(headerProfileImage)
+                } else {
+                    Log.d(TAG, "Current data: null")
+                    headerUserName.text = "User Name"
+                    userNameTextView.text = "Welcome, User"
+                    headerProfileImage.setImageResource(R.drawable.default_profile)
+                }
+            }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -150,14 +151,13 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 val intent = Intent(this, LoginActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 startActivity(intent)
-                finish() // Finish HomeActivity
+                finish()
             }
-            // Add other cases here if need pa add ng menu items
             else -> {
-                Toast.makeText(this, "Unknown navigation item: ${item.title}", Toast.LENGTH_SHORT).show() // DEBUG for items
+                Toast.makeText(this, "Unknown navigation item: ${item.title}", Toast.LENGTH_SHORT).show()
             }
         }
-        drawerLayout.closeDrawer(GravityCompat.START) // Close the drawer
+        drawerLayout.closeDrawer(GravityCompat.START)
         return true
     }
 
@@ -167,5 +167,11 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         } else {
             super.onBackPressed()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Remove the listener to prevent memory leaks
+        userListener?.remove()
     }
 }

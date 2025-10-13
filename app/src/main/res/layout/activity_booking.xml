@@ -249,6 +249,16 @@
             android:text="Finding the nearest driver available for you..."
             android:textColor="@android:color/white"
             android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/buttonCancelWhileFinding"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/button_cancel_ride"
+            android:layout_marginTop="24dp"
+            android:backgroundTint="@android:color/holo_red_light"
+            />
+
     </LinearLayout>
 
     <!-- Generic Progress Bar Overlay (for other waiting states) -->

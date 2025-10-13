@@ -1,4 +1,4 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 import android.os.Bundle
 import android.view.MenuItem
@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.btsi.SwiftCab.models.BookingRequest // Corrected import
+import com.btsi.swiftcab.models.BookingRequest // Corrected import
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.* // Firebase Realtime Database
 import java.util.Collections

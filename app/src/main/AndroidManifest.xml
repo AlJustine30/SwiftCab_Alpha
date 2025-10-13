@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.btsi.SwiftCab">
+    package="com.btsi.swiftcab">
 
     <!-- Correctly placed permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".SwiftCabApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -23,7 +24,7 @@
             android:value="AIzaSyBpIuViGza83ArXqJdfv-wcnVfoDr4LhAM" />
 
         <activity
-            android:name="com.btsi.SwiftCab.MainActivity"
+            android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -32,40 +33,40 @@
         </activity>
 
         <activity
-            android:name="com.btsi.SwiftCab.LoginActivity"
+            android:name=".LoginActivity"
             android:exported="false" />
 
         <activity
-            android:name="com.btsi.SwiftCab.RegisterActivity"
+            android:name=".RegisterActivity"
             android:exported="false" />
         
         <activity
-            android:name="com.btsi.SwiftCab.HomeActivity"
+            android:name=".HomeActivity"
             android:exported="false" />
 
         <activity
-            android:name="com.btsi.SwiftCab.ProfileActivity"
+            android:name=".ProfileActivity"
             android:exported="false" />
 
         <activity
-            android:name="com.btsi.SwiftCab.DriverDashboardActivity"
+            android:name=".DriverDashboardActivity"
             android:exported="false" />
 
         <activity
-            android:name="com.btsi.SwiftCab.BookingActivity"
+            android:name=".BookingActivity"
             android:exported="false" />
 
         <activity
-            android:name="com.btsi.SwiftCab.BookingHistoryActivity"
+            android:name=".BookingHistoryActivity"
             android:exported="false"
             android:label="@string/title_activity_booking_history" 
-            android:parentActivityName="com.btsi.SwiftCab.HomeActivity" />
+            android:parentActivityName=".HomeActivity" />
             
         <activity 
-            android:name="com.btsi.SwiftCab.DriverBookingHistoryActivity"
+            android:name=".DriverBookingHistoryActivity"
             android:exported="false"
             android:label="@string/title_activity_driver_booking_history" 
-            android:parentActivityName="com.btsi.SwiftCab.DriverDashboardActivity" />
+            android:parentActivityName=".DriverDashboardActivity" />
 
     </application>
 

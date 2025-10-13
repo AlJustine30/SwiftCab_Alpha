@@ -1,4 +1,4 @@
-package com.btsi.SwiftCab.models
+package com.btsi.swiftcab.models
 
 import com.google.firebase.database.IgnoreExtraProperties
 

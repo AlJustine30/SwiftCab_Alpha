@@ -1,13 +1,10 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.btsi.SwiftCab.R
-import com.btsi.SwiftCab.LoginActivity
-import com.btsi.SwiftCab.RegisterActivity
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

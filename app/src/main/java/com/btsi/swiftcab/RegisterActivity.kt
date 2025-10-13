@@ -1,4 +1,4 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
@@ -66,43 +66,46 @@ class   RegisterActivity : AppCompatActivity() {
             auth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this) { task ->
                     if (task.isSuccessful) {
-                        // Registration success
+                        // Registration success, get the user
                         val user = auth.currentUser
+                        // Send verification email
+                        user?.sendEmailVerification()?.addOnCompleteListener { verificationTask ->
+                            if (verificationTask.isSuccessful) {
+                                // Store additional user data in Firestore
+                                val userData = hashMapOf(
+                                    "name" to fullName,
+                                    "email" to email,
+                                    "phone" to phone,
+                                    "role" to "Passenger",
+                                    "createdAt" to System.currentTimeMillis()
+                                )
 
-                        // Store additional user data in Firestore
-                        val userData = hashMapOf(
-                            "fullName" to fullName,
-                            "email" to email,
-                            "mobileNumber" to phone,
-                            "role" to "Passenger",
-                            "createdAt" to System.currentTimeMillis()
-                        )
-
-                        db.collection("users")
-                            .document(user!!.uid)
-                            .set(userData)
-                            .addOnSuccessListener {
-                                Toast.makeText(this, "Registration successful", Toast.LENGTH_SHORT).show()
-
-                                // Redirect to home activity
-                                val intent = Intent(this, HomeActivity::class.java)
-                                startActivity(intent)
-                                finish()
-                            }
-                            .addOnFailureListener { e ->
-                                Toast.makeText(this, "Error saving user data: ${e.message}",
-                                    Toast.LENGTH_SHORT).show()
-
-                                // Hide progress bar and re-enable button
+                                db.collection("users")
+                                    .document(user.uid)
+                                    .set(userData)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(this, "Registration successful. Please check your email for verification.", Toast.LENGTH_LONG).show()
+                                        // Sign out to force login after verification
+                                        auth.signOut()
+                                        // Redirect to login activity
+                                        val intent = Intent(this, LoginActivity::class.java)
+                                        startActivity(intent)
+                                        finish()
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Toast.makeText(this, "Error saving user data: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        progressBar.visibility = android.view.View.GONE
+                                        registerButton.isEnabled = true
+                                    }
+                            } else {
+                                Toast.makeText(this, "Failed to send verification email: ${verificationTask.exception?.message}", Toast.LENGTH_LONG).show()
                                 progressBar.visibility = android.view.View.GONE
                                 registerButton.isEnabled = true
                             }
+                        }
                     } else {
                         // Registration failed
-                        Toast.makeText(this, "Registration failed: ${task.exception?.message}",
-                            Toast.LENGTH_SHORT).show()
-
-                        // Hide progress bar and re-enable button
+                        Toast.makeText(this, "Registration failed: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
                         progressBar.visibility = android.view.View.GONE
                         registerButton.isEnabled = true
                     }

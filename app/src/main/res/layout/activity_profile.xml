@@ -12,8 +12,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Toolbar and AppBarLayout are removed for reversion -->
-
         <ImageView
             android:id="@+id/profileImageView"
             android:layout_width="150dp"
@@ -79,6 +77,14 @@
             android:textColor="@android:color/white"/>
 
         <Button
+            android:id="@+id/changePasswordButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Change Password" />
+
+        <Button
             android:id="@+id/deleteAccountButton"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
@@ -87,6 +93,13 @@
             android:text="Delete Account"
             android:textColor="@android:color/holo_red_dark"
             app:strokeColor="@android:color/holo_red_dark" />
+
+        <Button
+            android:id="@+id/logoutButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Logout" />
 
     </LinearLayout>
 </ScrollView>

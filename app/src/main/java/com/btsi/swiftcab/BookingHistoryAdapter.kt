@@ -1,11 +1,11 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.btsi.SwiftCab.models.BookingRequest // Corrected import
+import com.btsi.swiftcab.models.BookingRequest // Corrected import
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

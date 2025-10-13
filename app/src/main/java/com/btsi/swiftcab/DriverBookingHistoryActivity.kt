@@ -1,4 +1,4 @@
-package com.btsi.SwiftCab
+package com.btsi.swiftcab
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import java.util.Collections
-import com.btsi.SwiftCab.models.BookingRequest // Corrected import
+import com.btsi.swiftcab.models.BookingRequest // Corrected import
 
 class DriverBookingHistoryActivity : AppCompatActivity() {
 
