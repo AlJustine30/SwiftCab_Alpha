@@ -1,546 +1,519 @@
 package com.btsi.swiftcab
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
+import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
-import androidx.core.view.GravityCompat
-import androidx.drawerlayout.widget.DrawerLayout
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.btsi.swiftcab.databinding.ActivityDriverDashboardBinding
 import com.btsi.swiftcab.models.BookingRequest
 import com.google.android.gms.location.*
-import com.google.android.material.navigation.NavigationView
-import com.google.android.material.switchmaterial.SwitchMaterial
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
-import com.google.firebase.functions.FirebaseFunctionsException
-import com.google.firebase.functions.ktx.functions
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.functions.FirebaseFunctions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.URL
 
-class DriverDashboardActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
+class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
-    private lateinit var drawerLayout: DrawerLayout
-    private lateinit var textViewDriverWelcome: TextView
-    private lateinit var navView: NavigationView
-    private lateinit var driverStatusSwitch: SwitchMaterial
-
-    private lateinit var firebaseAuth: FirebaseAuth
-    private lateinit var database: FirebaseDatabase
-    private var currentFirebaseDriverId: String? = null
-    private var currentDriverName: String = "Driver"
-
-    private lateinit var onlineDriverRef: DatabaseReference
-    private lateinit var driverOffersRef: DatabaseReference
-    private var driverOffersListener: ChildEventListener? = null
-
-    // --- New, Robust State Management for Offers ---
-    private val pendingOffers = mutableMapOf<String, BookingRequest>()
-    private var currentlyDisplayedBookingId: String? = null
-
-    // --- New, Dedicated Listener for Active Bookings ---
-    private lateinit var activeBookingQuery: Query
-    private var activeBookingListener: ValueEventListener? = null
-    private var activeBooking: BookingRequest? = null
-
-
-    // --- Location Services ---
+    private lateinit var binding: ActivityDriverDashboardBinding
+    private lateinit var toggle: ActionBarDrawerToggle
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-    private lateinit var locationRequest: LocationRequest
-    private var isRequestingLocationUpdates = false
+    private var mMap: GoogleMap? = null
+    private var currentBooking: BookingRequest? = null
+    private var currentPolyline: Polyline? = null
 
-    private lateinit var bookingRequestLayout: LinearLayout
-    private lateinit var textViewPickupLocationInfo: TextView
-    private lateinit var textViewDestinationLocationInfo: TextView
-    private lateinit var buttonAcceptBooking: Button
-    private lateinit var buttonDeclineBooking: Button
 
-    private lateinit var activeBookingLayout: LinearLayout
-    private lateinit var textViewActiveBookingTitle: TextView
-    private lateinit var textViewActivePickupInfo: TextView
-    private lateinit var textViewActiveDestinationInfo: TextView
-    private lateinit var textViewActiveRiderInfo: TextView
-    private lateinit var buttonNavigateToPickup: Button
-    private lateinit var buttonStartTrip: Button
-    private lateinit var buttonEndTrip: Button
-
-    private val TAG = "DriverDashboard"
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val db: FirebaseDatabase = FirebaseDatabase.getInstance()
+    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
+    private var driverRef: DatabaseReference? = null
+    private var offersListenerReference: DatabaseReference? = null
+    private var offersValueListener: ValueEventListener? = null
+    private var activeBookingListener: ValueEventListener? = null
+    private var activeBookingRef: DatabaseReference? = null
 
     companion object {
-        const val STATUS_ON_TRIP = "ON_TRIP"
-        private const val LOCATION_PERMISSION_REQUEST_CODE = 101
-        private const val MAX_ACCEPT_RETRIES = 3
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1
+        private const val TAG = "DriverDashboard"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_driver_dashboard)
-
-        setupUI()
-        initializeFirebase()
-
-        if (currentFirebaseDriverId == null) {
-            handleInvalidDriver()
-            return
-        }
+        binding = ActivityDriverDashboardBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        createLocationRequest()
-        createLocationCallback()
 
-        setupNavigation()
-        setupSwitchListener()
-        setupButtonClickListeners()
-        fetchDriverDetails(currentFirebaseDriverId!!)
-        // --- Start the new active booking listener ---
-        attachActiveBookingListener(currentFirebaseDriverId!!)
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.driver_map) as? SupportMapFragment
+        mapFragment?.getMapAsync(this)
+
+        setupToolbarAndDrawer()
+        setupUI()
+    }
+
+    override fun onMapReady(googleMap: GoogleMap) {
+        mMap = googleMap
+        // Enable my location button on the map
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            mMap?.isMyLocationEnabled = true
+        }
+    }
+
+    private fun setupToolbarAndDrawer() {
+        setSupportActionBar(binding.toolbarDriverDashboard)
+        toggle = ActionBarDrawerToggle(
+            this,
+            binding.drawerLayoutDriverDashboard,
+            binding.toolbarDriverDashboard,
+            R.string.navigation_drawer_open,
+            R.string.navigation_drawer_close
+        )
+        binding.drawerLayoutDriverDashboard.addDrawerListener(toggle)
+        toggle.syncState()
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
     }
 
     private fun setupUI() {
-        val toolbar: Toolbar = findViewById(R.id.toolbar_driver_dashboard)
-        setSupportActionBar(toolbar)
-        drawerLayout = findViewById(R.id.drawer_layout_driver_dashboard)
-        navView = findViewById(R.id.nav_view_driver)
-        textViewDriverWelcome = findViewById(R.id.textViewDriverWelcome)
-        driverStatusSwitch = findViewById(R.id.switch_driver_status)
-        bookingRequestLayout = findViewById(R.id.booking_request_layout)
-        textViewPickupLocationInfo = findViewById(R.id.textViewPickupLocationInfo)
-        textViewDestinationLocationInfo = findViewById(R.id.textViewDestinationLocationInfo)
-        buttonAcceptBooking = findViewById(R.id.buttonAcceptBooking)
-        buttonDeclineBooking = findViewById(R.id.buttonDeclineBooking)
-        activeBookingLayout = findViewById(R.id.activeBookingLayout)
-        textViewActiveBookingTitle = findViewById(R.id.textViewActiveBookingTitle)
-        textViewActivePickupInfo = findViewById(R.id.textViewActivePickupInfo)
-        textViewActiveDestinationInfo = findViewById(R.id.textViewActiveDestinationInfo)
-        textViewActiveRiderInfo = findViewById(R.id.textViewActiveRiderInfo)
-        buttonNavigateToPickup = findViewById(R.id.buttonNavigateToPickup)
-        buttonStartTrip = findViewById(R.id.buttonStartTrip)
-        buttonEndTrip = findViewById(R.id.buttonEndTrip)
-    }
-
-    private fun initializeFirebase() {
-        firebaseAuth = FirebaseAuth.getInstance()
-        database = FirebaseDatabase.getInstance()
-        currentFirebaseDriverId = firebaseAuth.currentUser?.uid
-
-        currentFirebaseDriverId?.let {
-            onlineDriverRef = database.getReference("online_drivers").child(it)
-            driverOffersRef = database.getReference("driverRideOffers").child(it)
-            activeBookingQuery = database.getReference("booking_requests").orderByChild("driverId").equalTo(it)
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            // Redirect to login, assuming you have a LoginActivity
+            // startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
         }
-    }
 
-    private fun setupNavigation() {
-        val toggle = ActionBarDrawerToggle(this, drawerLayout, findViewById(R.id.toolbar_driver_dashboard), R.string.navigation_drawer_open, R.string.navigation_drawer_close)
-        drawerLayout.addDrawerListener(toggle)
-        toggle.syncState()
-        navView.setNavigationItemSelectedListener(this)
-    }
+        binding.textViewDriverWelcome.text = "Welcome, ${currentUser.displayName ?: "Driver"}"
+        driverRef = db.getReference("drivers").child(currentUser.uid)
 
-    private fun handleInvalidDriver() {
-        Log.e(TAG, "Driver ID is null. User might not be logged in properly.")
-        Toast.makeText(this, "Error: Driver not logged in.", Toast.LENGTH_LONG).show()
-        navigateToLogin()
-    }
+        binding.switchDriverStatus.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) goOnline() else goOffline()
+        }
 
-    // --- Location Logic Implementation ---
-
-    private fun createLocationRequest() {
-        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000) // 10 seconds
-            .setMinUpdateIntervalMillis(5000) // 5 seconds
-            .build()
-    }
-
-    private fun createLocationCallback() {
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                super.onLocationResult(locationResult)
-                locationResult.lastLocation?.let { location ->
-                    updateDriverLocationOnFirebase(location)
+        binding.navViewDriver.setNavigationItemSelectedListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.nav_logout -> {
+                    goOffline()
+                    auth.signOut()
+                    // startActivity(Intent(this, LoginActivity::class.java))
+                    finish()
+                    true
                 }
+                else -> false
             }
         }
+
+        binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
     }
 
-    private fun setupSwitchListener() {
-        driverStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (activeBooking != null) {
-                driverStatusSwitch.isChecked = !isChecked // Revert the switch
-                Toast.makeText(this, "Cannot change status during an active trip.", Toast.LENGTH_SHORT).show()
-                return@setOnCheckedChangeListener
-            }
-            if (isChecked) {
-                startOnlineFlow()
-            } else {
-                goOffline()
-            }
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (toggle.onOptionsItemSelected(item)) {
+            return true
         }
+        return super.onOptionsItemSelected(item)
     }
 
-    private fun startOnlineFlow() {
-        if (checkLocationPermission()) {
-            startLocationUpdates()
-        } else {
-            requestLocationPermission()
+    private fun goOnline() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            binding.switchDriverStatus.isChecked = false
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), LOCATION_PERMISSION_REQUEST_CODE)
+            return
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun startLocationUpdates() {
-        if (isRequestingLocationUpdates || activeBooking != null) return
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-        isRequestingLocationUpdates = true
-        driverStatusSwitch.text = getString(R.string.status_online)
-        Toast.makeText(this, getString(R.string.status_online_toast), Toast.LENGTH_SHORT).show()
+        driverRef?.onDisconnect()?.removeValue()
+        startLocationUpdates()
         attachDriverOffersListener()
-        onlineDriverRef.onDisconnect().removeValue()
-    }
-
-    private fun stopLocationUpdates() {
-        if (!isRequestingLocationUpdates) return
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-        isRequestingLocationUpdates = false
-    }
-
-    private fun updateDriverLocationOnFirebase(location: Location) {
-        if (currentFirebaseDriverId == null || !driverStatusSwitch.isChecked || activeBooking != null) return
-        val driverStatus = mapOf(
-            "lat" to location.latitude,
-            "lng" to location.longitude,
-            "last_updated" to ServerValue.TIMESTAMP
-        )
-        onlineDriverRef.setValue(driverStatus)
+        Toast.makeText(this, "You are now online", Toast.LENGTH_SHORT).show()
     }
 
     private fun goOffline() {
         stopLocationUpdates()
-        onlineDriverRef.onDisconnect().cancel()
-        onlineDriverRef.removeValue().addOnFailureListener { e -> Log.w(TAG, "Failed to remove online driver node, may already be offline.", e) }
+        driverRef?.onDisconnect()?.cancel()
+        driverRef?.removeValue()
         detachDriverOffersListener()
-        driverStatusSwitch.text = getString(R.string.status_offline)
-        Toast.makeText(this, getString(R.string.status_offline_toast), Toast.LENGTH_SHORT).show()
+        detachActiveBookingListener()
+        showDefaultView()
+        Toast.makeText(this, "You are now offline", Toast.LENGTH_SHORT).show()
     }
 
-    // --- Permission Handling ---
+    private fun startLocationUpdates() {
+        val locationRequest = LocationRequest.create().apply {
+            interval = 10000
+            fastestInterval = 5000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
 
-    private fun checkLocationPermission(): Boolean {
-        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                locationResult.lastLocation?.let { location ->
+                    val driverData = mapOf(
+                        "latitude" to location.latitude,
+                        "longitude" to location.longitude,
+                        "isOnline" to true
+                    )
+                    driverRef?.setValue(driverData)
+
+                    // NEW: If there is an active booking, update its driverLocation
+                    currentBooking?.bookingId?.let { bookingId ->
+                        if (currentBooking?.status == "EN_ROUTE_TO_PICKUP" || currentBooking?.status == "ARRIVED_AT_PICKUP" || currentBooking?.status == "EN_ROUTE_TO_DROPOFF") {
+                            db.getReference("bookingRequests").child(bookingId).child("driverLocation")
+                                .setValue(mapOf("latitude" to location.latitude, "longitude" to location.longitude))
+                        }
+                    }
+                }
+            }
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
     }
 
-    private fun requestLocationPermission() {
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), LOCATION_PERMISSION_REQUEST_CODE)
+    private fun stopLocationUpdates() {
+        if (::locationCallback.isInitialized) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+        }
+    }
+
+    private fun attachDriverOffersListener() {
+        val driverId = auth.currentUser?.uid ?: return
+        offersListenerReference = db.getReference("driverOffers").child(driverId)
+
+        offersValueListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.childrenCount > 0) {
+                    val firstOfferSnapshot = snapshot.children.first()
+                    val bookingRequest = firstOfferSnapshot.getValue(BookingRequest::class.java)
+                    if (bookingRequest != null && !isFinishing) {
+                        showBookingOfferDialog(bookingRequest)
+                        detachDriverOffersListener()
+                    }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Driver offers listener cancelled.", error.toException())
+            }
+        }
+        offersListenerReference?.addValueEventListener(offersValueListener!!)
+    }
+
+    private fun detachDriverOffersListener() {
+        offersValueListener?.let { listener ->
+            offersListenerReference?.removeEventListener(listener)
+        }
+    }
+
+    private fun showBookingOfferDialog(bookingRequest: BookingRequest) {
+        binding.bookingRequestLayout.visibility = View.VISIBLE
+        binding.textViewPickupLocationInfo.text = "Pickup: ${bookingRequest.pickupAddress}"
+        binding.textViewDestinationLocationInfo.text = "Destination: ${bookingRequest.destinationAddress}"
+
+        binding.buttonAcceptBooking.setOnClickListener {
+            acceptBooking(bookingRequest.bookingId)
+        }
+        binding.buttonDeclineBooking.setOnClickListener {
+            binding.bookingRequestLayout.visibility = View.GONE
+            attachDriverOffersListener()
+        }
+    }
+
+    private fun acceptBooking(bookingId: String?) {
+        if (bookingId == null) return
+
+        functions.getHttpsCallable("acceptBooking")
+            .call(hashMapOf("bookingId" to bookingId))
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Toast.makeText(this, "Booking Accepted!", Toast.LENGTH_SHORT).show()
+                    binding.bookingRequestLayout.visibility = View.GONE
+                    listenForActiveBooking(bookingId)
+                } else {
+                    Log.w(TAG, "acceptBooking:onComplete:failure", task.exception)
+                    Toast.makeText(this, "Failed to accept booking.", Toast.LENGTH_SHORT).show()
+                    attachDriverOffersListener()
+                }
+            }
+    }
+
+    private fun listenForActiveBooking(bookingId: String) {
+        detachActiveBookingListener()
+        activeBookingRef = db.getReference("bookingRequests").child(bookingId)
+        activeBookingListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val booking = snapshot.getValue(BookingRequest::class.java)
+                currentBooking = booking
+                if (booking != null && booking.driverId == auth.currentUser?.uid) {
+                    updateUiForActiveTrip(booking)
+                } else {
+                    showDefaultView()
+                    currentBooking = null
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Active booking listener failed.", error.toException())
+                showDefaultView()
+            }
+        }
+        activeBookingRef?.addValueEventListener(activeBookingListener!!)
+    }
+
+    private fun detachActiveBookingListener() {
+        activeBookingListener?.let { listener ->
+            activeBookingRef?.removeEventListener(listener)
+        }
+    }
+
+    private fun updateUiForActiveTrip(booking: BookingRequest) {
+        showActiveTripView()
+        binding.passengerNameText.text = "Passenger: ${booking.riderName}"
+        binding.pickupAddressText.text = "Pickup: ${booking.pickupAddress}"
+        binding.dropoffAddressText.text = "Dropoff: ${booking.destinationAddress}"
+
+        val pickupLatLng = LatLng(booking.pickupLatitude ?: 0.0, booking.pickupLongitude ?: 0.0)
+        val dropoffLatLng = LatLng(booking.destinationLatitude ?: 0.0, booking.destinationLongitude ?: 0.0)
+
+        mMap?.clear()
+        currentPolyline?.remove()
+        mMap?.addMarker(MarkerOptions().position(pickupLatLng).title("Pickup"))
+        mMap?.addMarker(MarkerOptions().position(dropoffLatLng).title("Dropoff"))
+
+        // Draw route if trip is active
+        val shouldDrawRoute = booking.status == "EN_ROUTE_TO_PICKUP" || booking.status == "EN_ROUTE_TO_DROPOFF"
+        if (shouldDrawRoute) {
+             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
+                    if(driverLocation != null) {
+                        val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
+                        val destination = if (booking.status == "EN_ROUTE_TO_PICKUP") pickupLatLng else dropoffLatLng
+                        getDirectionsAndDrawRoute(origin, destination)
+                    }
+                }
+            }
+        } else {
+            // If no route, just zoom to fit pickup and dropoff markers
+             val bounds = LatLngBounds.Builder().include(pickupLatLng).include(dropoffLatLng).build()
+             mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+        }
+
+
+        // Update the action button based on the trip status
+        when (booking.status) {
+            "ACCEPTED" -> {
+                binding.tripActionButton.text = "Start Trip (Navigate to Pickup)"
+                binding.tripActionButton.isEnabled = true
+            }
+            "EN_ROUTE_TO_PICKUP" -> {
+                binding.tripActionButton.text = "Confirm Arrival at Pickup"
+                binding.tripActionButton.isEnabled = true
+            }
+            "ARRIVED_AT_PICKUP" -> {
+                binding.tripActionButton.text = "Start Trip to Destination"
+                binding.tripActionButton.isEnabled = true
+            }
+            "EN_ROUTE_TO_DROPOFF" -> {
+                binding.tripActionButton.text = "Complete Trip"
+                binding.tripActionButton.isEnabled = true
+            }
+            "COMPLETED" -> {
+                binding.tripActionButton.text = "Trip Completed"
+                binding.tripActionButton.isEnabled = false
+                showDefaultView()
+            }
+            else -> {
+                binding.tripActionButton.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun onTripActionButtonClicked() {
+        val booking = currentBooking ?: return
+        val currentStatus = booking.status
+
+        val nextStatus = when (currentStatus) {
+            "ACCEPTED" -> "EN_ROUTE_TO_PICKUP"
+            "EN_ROUTE_TO_PICKUP" -> "ARRIVED_AT_PICKUP"
+            "ARRIVED_AT_PICKUP" -> "EN_ROUTE_TO_DROPOFF"
+            "EN_ROUTE_TO_DROPOFF" -> "COMPLETED"
+            else -> null
+        }
+
+        if (nextStatus != null) {
+            updateTripStatus(booking.bookingId!!, nextStatus)
+        }
+    }
+
+    private fun updateTripStatus(bookingId: String, newStatus: String) {
+        binding.tripActionButton.isEnabled = false
+        functions.getHttpsCallable("updateTripStatus")
+            .call(mapOf("bookingId" to bookingId, "newStatus" to newStatus))
+            .addOnSuccessListener {
+                Log.d(TAG, "Trip status updated to $newStatus")
+                // The listener will handle UI changes. Now, draw route if needed.
+                 if (newStatus == "EN_ROUTE_TO_PICKUP" || newStatus == "EN_ROUTE_TO_DROPOFF") {
+                     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return@addOnSuccessListener
+                     fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
+                         if (driverLocation != null) {
+                             val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
+                             val destination = if (newStatus == "EN_ROUTE_TO_PICKUP") {
+                                 LatLng(currentBooking?.pickupLatitude ?: 0.0, currentBooking?.pickupLongitude ?: 0.0)
+                             } else {
+                                 LatLng(currentBooking?.destinationLatitude ?: 0.0, currentBooking?.destinationLongitude ?: 0.0)
+                             }
+                             getDirectionsAndDrawRoute(origin, destination)
+                         }
+                     }
+                 } else if (newStatus == "ARRIVED_AT_PICKUP" || newStatus == "COMPLETED") {
+                     // Clear the route when arriving or completing
+                     currentPolyline?.remove()
+                 }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to update trip status", e)
+                Toast.makeText(this, "Error: Could not update trip status.", Toast.LENGTH_SHORT).show()
+                binding.tripActionButton.isEnabled = true
+            }
+    }
+    
+    private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
+        val apiKey = getString(R.string.google_maps_key)
+        val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=$apiKey"
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val result = URL(url).readText()
+                val jsonObject = JSONObject(result)
+                val routes = jsonObject.getJSONArray("routes")
+                if (routes.length() > 0) {
+                    val points = routes.getJSONObject(0).getJSONObject("overview_polyline").getString("points")
+                    val polylineOptions = PolylineOptions()
+                        .addAll(decodePoly(points))
+                        .color(Color.BLUE)
+                        .width(12f)
+                    
+                    withContext(Dispatchers.Main) {
+                        currentPolyline?.remove()
+                        currentPolyline = mMap?.addPolyline(polylineOptions)
+                        
+                        // Adjust camera to fit the route
+                        val boundsBuilder = LatLngBounds.Builder()
+                        boundsBuilder.include(origin)
+                        boundsBuilder.include(destination)
+                        mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 150))
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching directions", e)
+                 withContext(Dispatchers.Main) {
+                     Toast.makeText(this@DriverDashboardActivity, "Could not get directions.", Toast.LENGTH_SHORT).show()
+                 }
+            }
+        }
+    }
+    
+    private fun decodePoly(encoded: String): List<LatLng> {
+        val poly = ArrayList<LatLng>()
+        var index = 0
+        val len = encoded.length
+        var lat = 0
+        var lng = 0
+
+        while (index < len) {
+            var b: Int
+            var shift = 0
+            var result = 0
+            do {
+                b = encoded[index++].code - 63
+                result = result or (b and 0x1f shl shift)
+                shift += 5
+            } while (b >= 0x20)
+            val dlat = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lat += dlat
+
+            shift = 0
+            result = 0
+            do {
+                b = encoded[index++].code - 63
+                result = result or (b and 0x1f shl shift)
+                shift += 5
+            } while (b >= 0x20)
+            val dlng = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lng += dlng
+
+            val p = LatLng(lat.toDouble() / 1E5, lng.toDouble() / 1E5)
+            poly.add(p)
+        }
+        return poly
+    }
+
+
+    private fun showDefaultView() {
+        binding.driverStatusLayout.visibility = View.VISIBLE
+        binding.tripDetailsMapContainer.visibility = View.GONE
+        binding.tripDetailsCard.visibility = View.GONE
+        binding.bookingRequestLayout.visibility = View.GONE // Hide booking request as well
+        mMap?.clear()
+        currentPolyline?.remove()
+    }
+
+    private fun showActiveTripView() {
+        binding.driverStatusLayout.visibility = View.GONE
+        binding.bookingRequestLayout.visibility = View.GONE
+        binding.tripDetailsMapContainer.visibility = View.VISIBLE
+        binding.tripDetailsCard.visibility = View.VISIBLE
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startLocationUpdates()
+                if (binding.switchDriverStatus.isChecked) goOnline()
+                 mMap?.isMyLocationEnabled = true
             } else {
                 Toast.makeText(this, "Location permission is required to go online.", Toast.LENGTH_LONG).show()
-                driverStatusSwitch.isChecked = false
             }
         }
     }
 
-    // --- Core Business Logic (Accept, Decline, etc.) ---
-
-    private fun setupButtonClickListeners() {
-        buttonAcceptBooking.setOnClickListener {
-            currentlyDisplayedBookingId?.let { acceptBooking(it) }
-        }
-        buttonDeclineBooking.setOnClickListener {
-            currentlyDisplayedBookingId?.let { declineBooking(it) }
-        }
-    }
-
-    private fun acceptBooking(bookingId: String, retryCount: Int = 0) {
-        if (retryCount == 0) {
-            buttonAcceptBooking.isEnabled = false
-            buttonDeclineBooking.isEnabled = false
-            buttonAcceptBooking.text = "ACCEPTING..."
-        }
-
-        Firebase.functions
-            .getHttpsCallable("acceptBooking")
-            .call(hashMapOf("bookingId" to bookingId))
-            .addOnSuccessListener {
-                Log.d(TAG, "Cloud function 'acceptBooking' call succeeded. Waiting for listener to update UI.")
-                Toast.makeText(this, getString(R.string.booking_accepted_toast), Toast.LENGTH_SHORT).show()
-                // The activeBookingListener will now automatically handle the UI transition.
-                // We no longer need to manually change state here.
-            }
-            .addOnFailureListener { e ->
-                if (e is FirebaseFunctionsException && e.code == FirebaseFunctionsException.Code.ABORTED && e.message?.contains("The line is busy") == true) {
-                    if (retryCount < MAX_ACCEPT_RETRIES) {
-                        Log.w(TAG, "acceptBooking failed due to contention. Retrying... (Attempt ${retryCount + 1})")
-                        Handler(Looper.getMainLooper()).postDelayed({ acceptBooking(bookingId, retryCount + 1) }, 500L * (retryCount + 1))
-                    } else {
-                        Log.e(TAG, "acceptBooking failed after max retries.", e)
-                        Toast.makeText(this, "Failed to accept: Server is busy. The offer may no longer be available.", Toast.LENGTH_LONG).show()
-                        resetAcceptDeclineButtons()
-                    }
-                } else {
-                    Log.e(TAG, "Cloud function 'acceptBooking' failed with a non-recoverable error.", e)
-                    val userMessage = (e as? FirebaseFunctionsException)?.message ?: "An unexpected error occurred."
-                    Toast.makeText(this, "Failed to accept ride: $userMessage", Toast.LENGTH_LONG).show()
-                    
-                    // The offer was likely removed. Refresh the UI state.
-                    pendingOffers.remove(bookingId)
-                    updateOfferDisplay()
-                    resetAcceptDeclineButtons()
-                }
-            }
-    }
-    
-    private fun resetAcceptDeclineButtons() {
-        buttonAcceptBooking.isEnabled = true
-        buttonDeclineBooking.isEnabled = true
-        buttonAcceptBooking.text = "ACCEPT"
-    }
-
-    private fun declineBooking(bookingId: String) {
-        // Optimistically remove from UI
-        pendingOffers.remove(bookingId)
-        updateOfferDisplay()
-        // Tell backend to remove the offer
-        driverOffersRef.child(bookingId).removeValue()
-        Toast.makeText(this, getString(R.string.booking_declined_toast), Toast.LENGTH_SHORT).show()
-    }
-
-    // --- NEW, ROBUST LISTENER LOGIC ---
-
-    private fun attachDriverOffersListener() {
-        if (driverOffersListener != null || activeBooking != null) return
-        
-        Log.d(TAG, "Attaching driver offers listener.")
-        driverOffersListener = object : ChildEventListener {
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val booking = snapshot.getValue(BookingRequest::class.java)
-                if (booking != null && booking.bookingId != null) {
-                    Log.d(TAG, "Offer added: ${booking.bookingId}")
-                    pendingOffers[booking.bookingId!!] = booking
-                    updateOfferDisplay()
-                }
-            }
-
-            override fun onChildRemoved(snapshot: DataSnapshot) {
-                val bookingId = snapshot.key
-                if (bookingId != null) {
-                    Log.d(TAG, "Offer removed: $bookingId")
-                    pendingOffers.remove(bookingId)
-                    updateOfferDisplay()
-                }
-            }
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onCancelled(error: DatabaseError) { Log.e(TAG, "driverOffersListener cancelled: ${error.message}") }
-        }
-        driverOffersRef.addChildEventListener(driverOffersListener!!)
-    }
-
-    private fun detachDriverOffersListener() {
-        if (driverOffersListener != null) {
-            Log.d(TAG, "Detaching driver offers listener.")
-            driverOffersRef.removeEventListener(driverOffersListener!!)
-            driverOffersListener = null
-        }
-        pendingOffers.clear()
-        updateOfferDisplay()
-    }
-    
-    // --- NEW, DEDICATED ACTIVE BOOKING LISTENER ---
-
-    private fun attachActiveBookingListener(driverId: String) {
-        if (activeBookingListener != null) return
-        Log.d(TAG, "Attaching active booking listener.")
-        activeBookingListener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                var foundActiveBooking: BookingRequest? = null
-                if (snapshot.exists()) {
-                    for (bookingSnapshot in snapshot.children) {
-                        val booking = bookingSnapshot.getValue(BookingRequest::class.java)
-                        if (booking != null && (booking.status == "ACCEPTED" || booking.status == STATUS_ON_TRIP)) {
-                            foundActiveBooking = booking
+    override fun onResume() {
+        super.onResume()
+        auth.currentUser?.uid?.let {
+            db.getReference("bookingRequests").orderByChild("driverId").equalTo(it).get().addOnSuccessListener {
+                if(it.exists()){
+                    for (child in it.children) {
+                        val booking = child.getValue(BookingRequest::class.java)
+                        if (booking != null && booking.status != "COMPLETED" && booking.status != "CANCELED") {
+                            listenForActiveBooking(booking.bookingId!!)
                             break
                         }
                     }
                 }
-
-                if (foundActiveBooking != null) {
-                    if (activeBooking?.bookingId != foundActiveBooking.bookingId) {
-                        Log.i(TAG, "Active booking found: ${foundActiveBooking.bookingId}")
-                        displayActiveBookingUI(foundActiveBooking)
-                    }
-                } else {
-                    if (activeBooking != null) {
-                        Log.i(TAG, "Active booking is no longer active. Returning to online state.")
-                        clearActiveBookingState()
-                    }
-                }
             }
-            override fun onCancelled(error: DatabaseError) { Log.e(TAG, "activeBookingListener cancelled: ${error.message}") }
         }
-        activeBookingQuery.addValueEventListener(activeBookingListener!!)
-    }
-
-    private fun detachActiveBookingListener() {
-        if (activeBookingListener != null) {
-            Log.d(TAG, "Detaching active booking listener.")
-            activeBookingQuery.removeEventListener(activeBookingListener!!)
-            activeBookingListener = null
-        }
-    }
-
-
-    // --- UI Display and State Management ---
-
-    private fun fetchDriverDetails(uid: String) {
-        database.getReference("users").child(uid).addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                currentDriverName = snapshot.child("name").getValue(String::class.java) ?: "Driver"
-                val email = snapshot.child("email").getValue(String::class.java)
-                textViewDriverWelcome.text = "Welcome, $currentDriverName"
-                updateNavHeader(currentDriverName, email)
-            }
-            override fun onCancelled(error: DatabaseError) { Log.e(TAG, "Failed to fetch driver details: ${error.message}") }
-        })
     }
     
-    private fun updateOfferDisplay() {
-        if (pendingOffers.isEmpty()) {
-            if (currentlyDisplayedBookingId != null) {
-                Log.d(TAG, "No more pending offers. Clearing display.")
-                currentlyDisplayedBookingId = null
-                bookingRequestLayout.visibility = View.GONE
-                resetAcceptDeclineButtons()
-            }
-        } else {
-            val nextBookingId = pendingOffers.keys.first()
-            if (currentlyDisplayedBookingId != nextBookingId) {
-                Log.d(TAG, "Displaying new offer: $nextBookingId")
-                currentlyDisplayedBookingId = nextBookingId
-                val booking = pendingOffers[nextBookingId]
-                if (booking != null) {
-                    bookingRequestLayout.visibility = View.VISIBLE
-                    textViewPickupLocationInfo.text = booking.pickupAddress
-                    textViewDestinationLocationInfo.text = booking.destinationAddress
-                    resetAcceptDeclineButtons()
-                } else {
-                     // Should not happen, but good to handle
-                    pendingOffers.remove(nextBookingId)
-                    updateOfferDisplay()
-                }
-            }
-        }
-    }
-
-    private fun displayActiveBookingUI(booking: BookingRequest) {
-        if (isFinishing || isDestroyed) return
-        
-        // --- This is the new centralized point for entering the active state ---
-        activeBooking = booking
-        
-        // Stop looking for other jobs
-        detachDriverOffersListener()
-        stopLocationUpdates() // Temporarily stop location updates while UI is figured out
-        
-        driverStatusSwitch.isEnabled = false
-        driverStatusSwitch.text = "ON TRIP"
-        activeBookingLayout.visibility = View.VISIBLE
-        bookingRequestLayout.visibility = View.GONE
-
-        textViewActivePickupInfo.text = "Pickup: ${booking.pickupAddress}"
-        textViewActiveDestinationInfo.text = "Destination: ${booking.destinationAddress}"
-        textViewActiveRiderInfo.text = "Rider: ${booking.riderName}"
-
-        if (booking.status == STATUS_ON_TRIP) {
-            buttonNavigateToPickup.visibility = View.GONE
-            buttonStartTrip.visibility = View.GONE
-            buttonEndTrip.visibility = View.VISIBLE
-        } else { // "ACCEPTED"
-            buttonNavigateToPickup.visibility = View.VISIBLE
-            buttonStartTrip.visibility = View.VISIBLE
-            buttonEndTrip.visibility = View.GONE
-        }
-    }
-
-    private fun clearActiveBookingState() {
-        activeBooking = null
-        activeBookingLayout.visibility = View.GONE
-        driverStatusSwitch.isEnabled = true
-        driverStatusSwitch.text = if(driverStatusSwitch.isChecked) "ONLINE" else "OFFLINE"
-        
-        // If we are still supposed to be online, restart the listeners
-        if (driverStatusSwitch.isChecked) {
-            startOnlineFlow()
-        }
-    }
-
-    private fun updateNavHeader(name: String?, email: String?) {
-        val headerView = navView.getHeaderView(0)
-        val textViewNavName = headerView.findViewById<TextView>(R.id.textViewNavDriverName)
-        val textViewNavEmail = headerView.findViewById<TextView>(R.id.textViewNavDriverEmail)
-        textViewNavName.text = name
-        textViewNavEmail.text = email
-    }
-
-    private fun navigateToLogin() {
-        val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
-        finish()
-    }
-
-    // --- Lifecycle and Navigation ---
-
-    override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.nav_driver_logout -> {
-                goOffline()
-                firebaseAuth.signOut()
-                navigateToLogin()
-            }
-        }
-        drawerLayout.closeDrawer(GravityCompat.START)
-        return true
-    }
-    
-    override fun onResume() {
-        super.onResume()
-        if (driverStatusSwitch.isChecked && !isRequestingLocationUpdates && activeBooking == null) {
-            startOnlineFlow()
-        }
-        currentFirebaseDriverId?.let { attachActiveBookingListener(it) }
-    }
-    
-    override fun onPause() {
-        super.onPause()
-        if (isRequestingLocationUpdates) {
-            stopLocationUpdates()
-        }
-        detachActiveBookingListener()
-    }
-
     override fun onDestroy() {
         super.onDestroy()
-        // Ensure we go offline if the activity is destroyed (and not on a trip)
-        if (activeBooking == null) {
-            goOffline()
+        // To prevent memory leaks, we should ensure we go offline and detach listeners
+        if (auth.currentUser != null) {
+             goOffline()
         }
     }
 }

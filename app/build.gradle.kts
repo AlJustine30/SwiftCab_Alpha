@@ -1,17 +1,18 @@
+
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.google.services) // Added this line
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.btsi.swiftcab"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.btsi.swiftcab"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -28,45 +29,38 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "1.8"
     }
-    sourceSets {
-        getByName("main") {
-            java.srcDirs("src/main/java")
-        }
+    buildFeatures{
+        viewBinding = true
     }
 }
 
 dependencies {
 
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-    implementation(libs.androidx.activity)
-    implementation(libs.androidx.constraintlayout)
-    implementation("androidx.navigation:navigation-compose:2.9.3")
-    implementation("androidx.activity:activity-compose:1.10.1")
-    implementation("androidx.compose.material3:material3:1.3.2")
-    implementation(platform("com.google.firebase:firebase-bom:32.0.0")) // Kept one BOM
-    implementation("com.google.firebase:firebase-auth") // Correct
-    implementation("com.google.firebase:firebase-firestore")
+    implementation("androidx.core:core-ktx:1.9.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.10.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-database-ktx")
+    implementation("com.google.firebase:firebase-functions-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("com.google.firebase:firebase-storage-ktx")
-    implementation("com.google.firebase:firebase-database") // Changed this line
-    implementation("com.google.firebase:firebase-functions-ktx") // ADDED THIS LINE
-    implementation("com.github.ybq:android-spinkit:1.4.0")
-    implementation(libs.glide) // Kept this, assuming it's from version catalog
-    implementation("com.google.android.gms:play-services-maps:18.2.0") // Added Google Maps SDK
-    implementation("com.google.android.gms:play-services-location:21.3.0") // Added Location SDK
-    implementation("com.google.android.libraries.places:places:3.5.0") // ADDED THIS LINE
-    implementation("com.facebook.shimmer:shimmer:0.5.0") // Added Shimmer dependency
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    annotationProcessor(libs.compiler)
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.libraries.places:places:3.3.0")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation ("com.github.ybq:Android-SpinKit:1.4.0")
+    implementation("androidx.drawerlayout:drawerlayout:1.2.0")
+    implementation("androidx.activity:activity-ktx:1.8.2")
+
+
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
