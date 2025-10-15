@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">SwifCab</string>
+    <string name="app_name">SwiftCab</string>
     <string name="title_activity_maps">MapsActivity</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
@@ -66,11 +66,12 @@
     <string name="booking_history_title">Booking History</string>
     <string name="title_activity_booking_history">Booking History</string> <!-- For AndroidManifest label -->
     <string name="no_booking_history_found">No booking history found.</string>
-    <string name="history_date_prefix">Date: </string>
-    <string name="history_driver_prefix">Driver: </string>
-    <string name="history_pickup_prefix">From: </string>
-    <string name="history_destination_prefix">To: </string>
-    <string name="history_status_prefix">Status: </string>
+    <string name="history_date">Date: %1$s</string>
+    <string name="history_driver">Driver: %1$s</string>
+    <string name="history_rider">Rider: %1$s</string>
+    <string name="history_pickup">From: %1$s</string>
+    <string name="history_destination">To: %1$s</string>
+    <string name="history_status">Status: %1$s</string>
     <string name="title_activity_driver_booking_history">Driver Booking History</string> <!-- For AndroidManifest label -->
 
 </resources>

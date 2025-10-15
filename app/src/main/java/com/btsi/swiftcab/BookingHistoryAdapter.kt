@@ -5,13 +5,15 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.btsi.swiftcab.models.BookingRequest // Corrected import
+import com.btsi.swiftcab.models.BookingRequest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class BookingHistoryAdapter(private val bookingHistoryList: List<BookingRequest>) :
-    RecyclerView.Adapter<BookingHistoryAdapter.BookingHistoryViewHolder>() {
+class BookingHistoryAdapter(
+    private val bookingHistoryList: List<BookingRequest>,
+    private val userType: String // "driver" or "rider"
+) : RecyclerView.Adapter<BookingHistoryAdapter.BookingHistoryViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookingHistoryViewHolder {
         val itemView = LayoutInflater.from(parent.context)
@@ -21,14 +23,17 @@ class BookingHistoryAdapter(private val bookingHistoryList: List<BookingRequest>
 
     override fun onBindViewHolder(holder: BookingHistoryViewHolder, position: Int) {
         val currentItem = bookingHistoryList[position]
+        val context = holder.itemView.context
 
-        holder.textViewDate.text = holder.itemView.context.getString(R.string.history_date_prefix) + formatDate(currentItem.timestamp)
-        holder.textViewDriverName.text = holder.itemView.context.getString(R.string.history_driver_prefix) + (currentItem.driverName ?: "N/A")
-        holder.textViewPickup.text = holder.itemView.context.getString(R.string.history_pickup_prefix) + currentItem.pickupAddress
-        holder.textViewDestination.text = holder.itemView.context.getString(R.string.history_destination_prefix) + currentItem.destinationAddress
-        holder.textViewStatus.text = holder.itemView.context.getString(R.string.history_status_prefix) + currentItem.status
-        // Uncomment if you add fare
-        // holder.textViewPrice.text = "Fare: ${currentItem.fare ?: \"N/A\"}"
+        holder.textViewDate.text = context.getString(R.string.history_date, formatDate(currentItem.timestamp))
+        if (userType == "driver") {
+            holder.textViewUserName.text = context.getString(R.string.history_rider, currentItem.riderName ?: "N/A")
+        } else {
+            holder.textViewUserName.text = context.getString(R.string.history_driver, currentItem.driverName ?: "N/A")
+        }
+        holder.textViewPickup.text = context.getString(R.string.history_pickup, currentItem.pickupAddress)
+        holder.textViewDestination.text = context.getString(R.string.history_destination, currentItem.destinationAddress)
+        holder.textViewStatus.text = context.getString(R.string.history_status, currentItem.status)
     }
 
     override fun getItemCount() = bookingHistoryList.size
@@ -41,11 +46,9 @@ class BookingHistoryAdapter(private val bookingHistoryList: List<BookingRequest>
 
     class BookingHistoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val textViewDate: TextView = itemView.findViewById(R.id.textViewHistoryDate)
-        val textViewDriverName: TextView = itemView.findViewById(R.id.textViewHistoryDriverName) // Added for rider
+        val textViewUserName: TextView = itemView.findViewById(R.id.textViewHistoryUserName)
         val textViewPickup: TextView = itemView.findViewById(R.id.textViewHistoryPickup)
         val textViewDestination: TextView = itemView.findViewById(R.id.textViewHistoryDestination)
         val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
-        // Uncomment if adding fare
-        // val textViewPrice: TextView = itemView.findViewById(R.id.textViewHistoryPrice)
     }
 }

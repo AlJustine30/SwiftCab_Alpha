@@ -9,10 +9,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.btsi.swiftcab.models.BookingRequest // Corrected import
+import com.btsi.swiftcab.models.BookingRequest
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.* // Firebase Realtime Database
-import java.util.Collections
+import com.google.firebase.database.*
 
 class BookingHistoryActivity : AppCompatActivity() {
 
@@ -22,6 +21,7 @@ class BookingHistoryActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var database: FirebaseDatabase
     private lateinit var textViewNoHistory: TextView
+    private var userType: String = "rider" // Default to rider
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +38,9 @@ class BookingHistoryActivity : AppCompatActivity() {
         textViewNoHistory = findViewById(R.id.textViewNoHistory)
         recyclerViewBookingHistory = findViewById(R.id.recyclerViewBookingHistory)
         recyclerViewBookingHistory.layoutManager = LinearLayoutManager(this)
-        bookingHistoryAdapter = BookingHistoryAdapter(bookingHistoryList)
+
+        // Initialize adapter early. It will be updated with the correct user type later.
+        bookingHistoryAdapter = BookingHistoryAdapter(bookingHistoryList, userType)
         recyclerViewBookingHistory.adapter = bookingHistoryAdapter
 
         fetchBookingHistory()
@@ -52,40 +54,66 @@ class BookingHistoryActivity : AppCompatActivity() {
             return
         }
 
-        val riderId = currentUser.uid
-        val historyRef = database.getReference("Users/Riders/").child(riderId).child("booking_history")
+        val userId = currentUser.uid
 
-        historyRef.orderByChild("timestamp") // Order by timestamp
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    bookingHistoryList.clear()
-                    if (snapshot.exists()) {
-                        for (historySnapshot in snapshot.children) {
-                            val booking = historySnapshot.getValue(BookingRequest::class.java)
-                            if (booking != null) {
-                                bookingHistoryList.add(booking)
+        // First, determine if the user is a driver to decide which query to run
+        val driversRef = database.getReference("Users/Drivers").child(userId)
+        driversRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val query: Query
+                if (snapshot.exists()) {
+                    userType = "driver"
+                    // CORRECTED: Query "bookingRequests" instead of "Bookings"
+                    query = database.getReference("bookingRequests").orderByChild("driverId").equalTo(userId)
+                } else {
+                    userType = "rider"
+                    // CORRECTED: Query "bookingRequests" instead of "Bookings"
+                    query = database.getReference("bookingRequests").orderByChild("passengerId").equalTo(userId)
+                }
+
+                // Re-configure adapter with the correct userType before fetching data
+                bookingHistoryAdapter = BookingHistoryAdapter(bookingHistoryList, userType)
+                recyclerViewBookingHistory.adapter = bookingHistoryAdapter
+
+                query.addListenerForSingleValueEvent(object : ValueEventListener {
+                    override fun onDataChange(dataSnapshot: DataSnapshot) {
+                        bookingHistoryList.clear()
+                        if (dataSnapshot.exists()) {
+                            for (historySnapshot in dataSnapshot.children) {
+                                val booking = historySnapshot.getValue(BookingRequest::class.java)
+                                if (booking != null) {
+                                    bookingHistoryList.add(booking)
+                                }
                             }
+                            // Sort by timestamp descending (newest first)
+                            bookingHistoryList.sortByDescending { it.timestamp }
+                            bookingHistoryAdapter.notifyDataSetChanged()
                         }
-                        // Firebase returns in ascending order, reverse for descending (newest first)
-                        Collections.reverse(bookingHistoryList)
-                        bookingHistoryAdapter.notifyDataSetChanged()
-                    } 
-                    
-                    if (bookingHistoryList.isEmpty()) {
-                        textViewNoHistory.visibility = View.VISIBLE
-                        recyclerViewBookingHistory.visibility = View.GONE
-                    } else {
-                        textViewNoHistory.visibility = View.GONE
-                        recyclerViewBookingHistory.visibility = View.VISIBLE
+                        updateUiBasedOnHistory()
                     }
-                }
 
-                override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@BookingHistoryActivity, "Failed to load history: ${error.message}", Toast.LENGTH_SHORT).show()
-                    textViewNoHistory.visibility = View.VISIBLE
-                    recyclerViewBookingHistory.visibility = View.GONE
-                }
-            })
+                    override fun onCancelled(databaseError: DatabaseError) {
+                        Toast.makeText(this@BookingHistoryActivity, "Failed to load history: ${databaseError.message}", Toast.LENGTH_SHORT).show()
+                        updateUiBasedOnHistory()
+                    }
+                })
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {
+                Toast.makeText(this@BookingHistoryActivity, "Failed to determine user type: ${databaseError.message}", Toast.LENGTH_SHORT).show()
+                updateUiBasedOnHistory()
+            }
+        })
+    }
+    
+    private fun updateUiBasedOnHistory() {
+        if (bookingHistoryList.isEmpty()) {
+            textViewNoHistory.visibility = View.VISIBLE
+            recyclerViewBookingHistory.visibility = View.GONE
+        } else {
+            textViewNoHistory.visibility = View.GONE
+            recyclerViewBookingHistory.visibility = View.VISIBLE
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

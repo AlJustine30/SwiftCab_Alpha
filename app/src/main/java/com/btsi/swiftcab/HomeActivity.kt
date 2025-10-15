@@ -67,9 +67,6 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         drawerLayout.addDrawerListener(toggle)
         toggle.syncState()
 
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.setHomeButtonEnabled(true)
-
         // Access header views
         val headerView = navView.getHeaderView(0)
         headerProfileImage = headerView.findViewById(R.id.nav_header_profile_image)

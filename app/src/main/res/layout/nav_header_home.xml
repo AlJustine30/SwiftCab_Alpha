@@ -5,7 +5,10 @@
     android:layout_height="wrap_content"
     android:background="?attr/colorPrimaryDark"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:paddingStart="16dp"
+    android:paddingTop="48dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="16dp"
     android:theme="@style/ThemeOverlay.AppCompat.Dark">
 
     <ImageView
@@ -13,7 +16,6 @@
         android:layout_width="80dp"
         android:layout_height="80dp"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="16dp"
         android:contentDescription="Profile Image"
         android:scaleType="centerCrop"
         app:srcCompat="@drawable/default_profile" />

@@ -1,6 +1,7 @@
 package com.btsi.swiftcab
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
@@ -94,8 +95,6 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setupUI() {
         val currentUser = auth.currentUser
         if (currentUser == null) {
-            // Redirect to login, assuming you have a LoginActivity
-            // startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
@@ -108,17 +107,38 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         binding.navViewDriver.setNavigationItemSelectedListener { menuItem ->
+            binding.drawerLayoutDriverDashboard.closeDrawers() // Close drawer on item click
+
             when (menuItem.itemId) {
-                R.id.nav_logout -> {
+                R.id.nav_driver_dashboard_home -> {
+                    Toast.makeText(this, "Dashboard", Toast.LENGTH_SHORT).show()
+                }
+                R.id.nav_driver_profile -> {
+                    Toast.makeText(this, "Profile clicked", Toast.LENGTH_SHORT).show()
+                }
+                R.id.nav_driver_ride_history -> {
+                    startActivity(Intent(this, BookingHistoryActivity::class.java))
+                }
+                R.id.nav_driver_earnings -> {
+                    Toast.makeText(this, "Earnings clicked", Toast.LENGTH_SHORT).show()
+                }
+                R.id.nav_driver_settings -> {
+                    Toast.makeText(this, "Settings clicked", Toast.LENGTH_SHORT).show()
+                }
+                R.id.nav_driver_logout -> {
                     goOffline()
                     auth.signOut()
-                    // startActivity(Intent(this, LoginActivity::class.java))
+                    // You should have a main/login activity to return to.
+                    // Assuming MainActivity is your entry point.
+                    val intent = Intent(this, MainActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    startActivity(intent)
                     finish()
-                    true
                 }
-                else -> false
             }
+            true
         }
+
 
         binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
     }
@@ -298,7 +318,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         // Draw route if trip is active
         val shouldDrawRoute = booking.status == "EN_ROUTE_TO_PICKUP" || booking.status == "EN_ROUTE_TO_DROPOFF"
         if (shouldDrawRoute) {
-             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
                     if(driverLocation != null) {
                         val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
@@ -309,8 +329,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         } else {
             // If no route, just zoom to fit pickup and dropoff markers
-             val bounds = LatLngBounds.Builder().include(pickupLatLng).include(dropoffLatLng).build()
-             mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+            val bounds = LatLngBounds.Builder().include(pickupLatLng).include(dropoffLatLng).build()
+            mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 150))
         }
 
 
@@ -367,23 +387,23 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             .addOnSuccessListener {
                 Log.d(TAG, "Trip status updated to $newStatus")
                 // The listener will handle UI changes. Now, draw route if needed.
-                 if (newStatus == "EN_ROUTE_TO_PICKUP" || newStatus == "EN_ROUTE_TO_DROPOFF") {
-                     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return@addOnSuccessListener
-                     fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
-                         if (driverLocation != null) {
-                             val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
-                             val destination = if (newStatus == "EN_ROUTE_TO_PICKUP") {
-                                 LatLng(currentBooking?.pickupLatitude ?: 0.0, currentBooking?.pickupLongitude ?: 0.0)
-                             } else {
-                                 LatLng(currentBooking?.destinationLatitude ?: 0.0, currentBooking?.destinationLongitude ?: 0.0)
-                             }
-                             getDirectionsAndDrawRoute(origin, destination)
-                         }
-                     }
-                 } else if (newStatus == "ARRIVED_AT_PICKUP" || newStatus == "COMPLETED") {
-                     // Clear the route when arriving or completing
-                     currentPolyline?.remove()
-                 }
+                if (newStatus == "EN_ROUTE_TO_PICKUP" || newStatus == "EN_ROUTE_TO_DROPOFF") {
+                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return@addOnSuccessListener
+                    fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
+                        if (driverLocation != null) {
+                            val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
+                            val destination = if (newStatus == "EN_ROUTE_TO_PICKUP") {
+                                LatLng(currentBooking?.pickupLatitude ?: 0.0, currentBooking?.pickupLongitude ?: 0.0)
+                            } else {
+                                LatLng(currentBooking?.destinationLatitude ?: 0.0, currentBooking?.destinationLongitude ?: 0.0)
+                            }
+                            getDirectionsAndDrawRoute(origin, destination)
+                        }
+                    }
+                } else if (newStatus == "ARRIVED_AT_PICKUP" || newStatus == "COMPLETED") {
+                    // Clear the route when arriving or completing
+                    currentPolyline?.remove()
+                }
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to update trip status", e)
@@ -391,7 +411,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tripActionButton.isEnabled = true
             }
     }
-    
+
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
         val apiKey = getString(R.string.google_maps_key)
         val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=$apiKey"
@@ -407,11 +427,11 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                         .addAll(decodePoly(points))
                         .color(Color.BLUE)
                         .width(12f)
-                    
+
                     withContext(Dispatchers.Main) {
                         currentPolyline?.remove()
                         currentPolyline = mMap?.addPolyline(polylineOptions)
-                        
+
                         // Adjust camera to fit the route
                         val boundsBuilder = LatLngBounds.Builder()
                         boundsBuilder.include(origin)
@@ -421,13 +441,13 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching directions", e)
-                 withContext(Dispatchers.Main) {
-                     Toast.makeText(this@DriverDashboardActivity, "Could not get directions.", Toast.LENGTH_SHORT).show()
-                 }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@DriverDashboardActivity, "Could not get directions.", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
-    
+
     private fun decodePoly(encoded: String): List<LatLng> {
         val poly = ArrayList<LatLng>()
         var index = 0
@@ -485,7 +505,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 if (binding.switchDriverStatus.isChecked) goOnline()
-                 mMap?.isMyLocationEnabled = true
+                mMap?.isMyLocationEnabled = true
             } else {
                 Toast.makeText(this, "Location permission is required to go online.", Toast.LENGTH_LONG).show()
             }
@@ -508,12 +528,12 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         // To prevent memory leaks, we should ensure we go offline and detach listeners
         if (auth.currentUser != null) {
-             goOffline()
+            goOffline()
         }
     }
 }

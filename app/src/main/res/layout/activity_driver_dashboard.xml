@@ -48,16 +48,13 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Welcome,"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
+                    android:text="Welcome,"/>
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switch_driver_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/status_offline"
-                    android:textSize="16sp" />
+                    android:text="@string/status_offline"/>
             </LinearLayout>
 
             <!-- New Booking Request Layout -->
@@ -80,9 +77,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/new_booking_request_title"
-                    android:textSize="18sp"
-                    android:textStyle="bold"/>
+                    android:text="@string/new_booking_request_title"/>
 
                 <TextView
                     android:id="@+id/textViewPickupLocationInfo"
@@ -160,9 +155,7 @@
                         android:id="@+id/passenger_name_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Passenger: "
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:text="Passenger: " />
 
                     <TextView
                         android:id="@+id/pickup_address_text"
@@ -200,12 +193,6 @@
         android:layout_gravity="start"
         android:fitsSystemWindows="true"
         app:headerLayout="@layout/nav_header_driver"
-        app:menu="@menu/driver_navigation_menu"
-        app:itemBackground="@drawable/nav_item_background"
-        app:itemTextColor="@color/nav_item_text_color_selector"
-        app:itemIconTint="@color/nav_item_icon_tint_selector"
-        app:itemShapeAppearanceOverlay="@style/ShapeAppearance.App.SmallComponent"
-        app:itemPaddingTop="8dp"
-        app:itemPaddingBottom="8dp" />
+        app:menu="@menu/driver_navigation_menu" />
 
 </androidx.drawerlayout.widget.DrawerLayout>

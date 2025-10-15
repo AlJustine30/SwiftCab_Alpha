@@ -21,7 +21,7 @@
             android:text="Date: N/A" />
 
         <TextView
-            android:id="@+id/textViewHistoryDriverName"
+            android:id="@+id/textViewHistoryUserName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
@@ -40,7 +40,7 @@
         <TextView
             android:id="@+id/textViewHistoryDestination"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android.layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
             android:text="To: N/A" />
