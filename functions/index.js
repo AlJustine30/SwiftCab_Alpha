@@ -7,6 +7,37 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 const db = admin.database();
+const firestore = admin.firestore();
+
+/**
+ * V2 Cloud Function triggered when a booking'''s status changes.
+ * If the status becomes "COMPLETED", it archives the booking to Firestore and deletes it from Realtime DB.
+ */
+exports.archiveBooking = onValueCreated("/bookingRequests/{bookingId}", async (event) => {
+    const bookingSnapshot = event.data;
+    const bookingData = bookingSnapshot.val();
+    const bookingId = event.params.bookingId;
+
+    if (bookingData.status === "COMPLETED") {
+        logger.log(`Archiving booking ${bookingId}`);
+
+        try {
+            // 1. Copy the data to Firestore
+            await firestore.collection("completedBookings").doc(bookingId).set(bookingData);
+
+            // 2. Delete the original from Realtime Database
+            await bookingSnapshot.ref.remove();
+
+            logger.log(`Successfully archived booking ${bookingId} to Firestore.`);
+            return null;
+        } catch (error) {
+            logger.error(`Error archiving booking ${bookingId}:`, error);
+            return null;
+        }
+    }
+    return null;
+});
+
 
 /**
  * V2 Cloud Function triggered when a new booking request is created.

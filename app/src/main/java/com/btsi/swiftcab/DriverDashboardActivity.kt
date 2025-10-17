@@ -117,7 +117,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                     Toast.makeText(this, "Profile clicked", Toast.LENGTH_SHORT).show()
                 }
                 R.id.nav_driver_ride_history -> {
-                    startActivity(Intent(this, BookingHistoryActivity::class.java))
+                    startActivity(Intent(this, DriverBookingHistoryActivity::class.java))
                 }
                 R.id.nav_driver_earnings -> {
                     Toast.makeText(this, "Earnings clicked", Toast.LENGTH_SHORT).show()
@@ -383,7 +383,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updateTripStatus(bookingId: String, newStatus: String) {
         binding.tripActionButton.isEnabled = false
         functions.getHttpsCallable("updateTripStatus")
-            .call(mapOf("bookingId" to bookingId, "newStatus" to newStatus))
+            .call(mapOf("bookingId" to bookingId, "newStatus" to newStatus, "driverId" to auth.currentUser?.uid))
             .addOnSuccessListener {
                 Log.d(TAG, "Trip status updated to $newStatus")
                 // The listener will handle UI changes. Now, draw route if needed.

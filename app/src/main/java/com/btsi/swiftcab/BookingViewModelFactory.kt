@@ -16,7 +16,7 @@ class BookingViewModelFactory(
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BookingViewModel::class.java)) {
-            return BookingViewModel(database, auth, functions, firestore) as T
+            return BookingViewModel(auth, database, functions, firestore) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

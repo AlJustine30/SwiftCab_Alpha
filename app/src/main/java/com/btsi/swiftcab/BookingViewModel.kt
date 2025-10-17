@@ -25,7 +25,7 @@ sealed class BookingUiState {
         val message: String,
         val pickupLocation: LatLng,
         val dropOffLocation: LatLng,
-        val driverLocation: LatLng? // New field for live driver location
+        val driverLocation: LatLng?
     ) : BookingUiState()
 
     data class DriverArrived(
@@ -42,7 +42,7 @@ sealed class BookingUiState {
         val message: String,
         val pickupLocation: LatLng,
         val dropOffLocation: LatLng,
-        val driverLocation: LatLng? // Also track during trip
+        val driverLocation: LatLng?
     ) : BookingUiState()
 
     object TripCompleted : BookingUiState()
@@ -50,11 +50,12 @@ sealed class BookingUiState {
     data class Error(val message: String) : BookingUiState()
 }
 
+
 class BookingViewModel(
-    private val database: FirebaseDatabase,
     private val auth: FirebaseAuth,
+    private val database: FirebaseDatabase,
     private val functions: FirebaseFunctions,
-    private val firestore: FirebaseFirestore // Added for archiving
+    private val firestore: FirebaseFirestore // For archiving
 ) : ViewModel() {
 
     private val bookingRequestsRef: DatabaseReference = database.getReference("bookingRequests")
@@ -127,6 +128,27 @@ class BookingViewModel(
         }
     }
 
+    private fun saveCompletedBookingToHistory(booking: BookingRequest, riderId: String, driverId: String?) {
+        val bookingId = booking.bookingId
+        if (bookingId == null) {
+            Log.e(TAG, "Cannot save booking to history, bookingId is null")
+            return
+        }
+
+        val bookingToSave = booking.copy(riderId = riderId, driverId = driverId)
+
+        firestore.collection("bookinghistory").document(bookingId)
+            .set(bookingToSave)
+            .addOnSuccessListener {
+                Log.d(TAG, "Booking $bookingId successfully saved to history.")
+                bookingRequestsRef.child(bookingId).removeValue()
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to save booking $bookingId to history.", e)
+            }
+    }
+
+
     private fun listenForBookingStatus(bookingId: String) {
         removeBookingStatusListener()
         currentBookingId = bookingId
@@ -136,12 +158,48 @@ class BookingViewModel(
         bookingStatusListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val booking = snapshot.getValue(BookingRequest::class.java)
-                if (booking == null) {
+                if (booking == null || booking.bookingId == null) {
                     _uiState.postValue(BookingUiState.Canceled("Booking resolved."))
                     removeBookingStatusListener()
                     stopDriverLocationTracking()
                     return
                 }
+
+                // --- Definitive Fix: Handle terminal states first, using the booking snapshot as the source of truth --- 
+
+                val isTerminalState = booking.status in listOf("COMPLETED", "CANCELED", "NO_DRIVERS", "ERROR")
+
+                if (isTerminalState) {
+                    if (booking.status == "COMPLETED") {
+                        val riderId = auth.currentUser?.uid
+                        val driverIdFromBooking = booking.driverId // Use the ID from the snapshot, not a state variable
+
+                        Log.d(TAG, "Trip completed. Saving history. Rider ID: $riderId, Driver ID from snapshot: $driverIdFromBooking")
+
+                        if (riderId != null && driverIdFromBooking != null) {
+                            saveCompletedBookingToHistory(booking, riderId, driverIdFromBooking)
+                        } else {
+                            Log.e(TAG, "Could not save history for booking ${booking.bookingId}. RiderID or DriverID from snapshot was null.")
+                        }
+                        _uiState.postValue(BookingUiState.TripCompleted)
+                    } else {
+                        // Handle Canceled, No Drivers, etc.
+                        val reason = booking.cancellationReason ?: booking.status
+                        val message = when (reason) {
+                            "NO_DRIVERS" -> "Sorry, no drivers were found near you."
+                            "user_canceled" -> "You cancelled the booking."
+                            else -> "Your booking was cancelled."
+                        }
+                        _uiState.postValue(BookingUiState.Canceled(message))
+                    }
+
+                    // Clean up for all terminal states
+                    stopDriverLocationTracking()
+                    removeBookingStatusListener()
+                    return // Stop all further processing
+                }
+
+                // --- Handle active, ongoing trip states ---
 
                 val pLat = booking.pickupLatitude
                 val pLng = booking.pickupLongitude
@@ -149,7 +207,6 @@ class BookingViewModel(
                 val dLng = booking.destinationLongitude
                 val driverLat = booking.driverLocation?.get("latitude") as? Double
                 val driverLng = booking.driverLocation?.get("longitude") as? Double
-
                 val locationDataAvailable = pLat != null && pLng != null && dLat != null && dLng != null
 
                 val newState = when (booking.status) {
@@ -195,35 +252,20 @@ class BookingViewModel(
                             BookingUiState.Error("Incomplete booking data from server.")
                         }
                     }
-                    "COMPLETED" -> {
-                        archiveBookingAndCleanup(booking) // New: Archive the booking
-                        BookingUiState.TripCompleted
-                    }
-                    "CANCELED", "NO_DRIVERS", "ERROR" -> {
-                        val reason = booking.cancellationReason ?: booking.status
-                        val message = when (reason) {
-                            "NO_DRIVERS" -> "Sorry, no drivers were found near you."
-                            "user_canceled" -> "You cancelled the booking."
-                            else -> "Your booking was cancelled."
-                        }
-                        BookingUiState.Canceled(message)
-                    }
                     else -> null
                 }
                 newState?.let { _uiState.postValue(it) }
 
-                // Manage driver location tracking
+                // --- Manage driver location tracking for active states ---
                 val driverId = booking.driverId
-                val shouldTrack = booking.status in listOf("ACCEPTED", "EN_ROUTE_TO_PICKUP", "EN_ROUTE_TO_DROPOFF")
+                val shouldTrack = booking.status in listOf("ACCEPTED", "EN_ROUTE_TO_PICKUP", "ARRIVED_AT_PICKUP", "EN_ROUTE_TO_DROPOFF")
 
                 if (driverId != null && shouldTrack) {
                     if (driverId != trackedDriverId) {
-                        // A driver has been assigned or changed. Start tracking them.
                         startDriverLocationTracking(driverId)
                         trackedDriverId = driverId
                     }
                 } else {
-                    // No driver or trip is not in a trackable state.
                     if (trackedDriverId != null) {
                         stopDriverLocationTracking()
                     }
@@ -277,40 +319,13 @@ class BookingViewModel(
         val newState = when (currentState) {
             is BookingUiState.DriverOnTheWay -> currentState.copy(driverLocation = driverLocation)
             is BookingUiState.TripInProgress -> currentState.copy(driverLocation = driverLocation)
-            else -> null // Don\'t update if in a different state (e.g., Arrived)
+            else -> null // Don't update if in a different state (e.g., Arrived)
         }
         newState?.let {
             if (it != currentState) {
                 _uiState.postValue(it)
             }
         }
-    }
-
-    private fun archiveBookingAndCleanup(booking: BookingRequest) {
-        val bookingId = booking.bookingId
-        if (bookingId == null) {
-            Log.e(TAG, "Cannot archive booking with null ID")
-            return
-        }
-
-        // 1. Save to Firestore
-        firestore.collection("completedBookings")
-            .document(bookingId)
-            .set(booking)
-            .addOnSuccessListener {
-                Log.d(TAG, "Booking $bookingId successfully archived to Firestore.")
-                // 2. Delete from Realtime Database on successful archive
-                bookingRequestsRef.child(bookingId).removeValue()
-                    .addOnSuccessListener {
-                        Log.d(TAG, "Booking $bookingId successfully removed from Realtime Database.")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e(TAG, "Failed to remove booking $bookingId from Realtime Database.", e)
-                    }
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to archive booking $bookingId to Firestore.", e)
-            }
     }
 
     fun clearBookingState() {

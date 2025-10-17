@@ -4,7 +4,7 @@ import com.google.firebase.database.IgnoreExtraProperties
 
 @IgnoreExtraProperties
 data class BookingRequest(
-    val bookingId: String? = null,
+    var bookingId: String? = null,
     val riderId: String? = null,
     val riderName: String? = null,
     val pickupLatitude: Double? = null,

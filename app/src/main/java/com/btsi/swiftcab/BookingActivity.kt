@@ -2,6 +2,7 @@ package com.btsi.swiftcab
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -332,14 +333,19 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 previousStateClass = state::class.java
             }
             is BookingUiState.TripCompleted -> {
-                showBookingStatusCard(
-                    header = "Trip Completed",
-                    driverName = "",
-                    vehicleDetails = "",
-                    message = "Thank you for riding with us!"
-                )
+                // Show a confirmation message
+                Toast.makeText(this, "Trip Completed! Thank you for riding with us.", Toast.LENGTH_LONG).show()
+
+                // Navigate back to the home screen after a short delay
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    val intent = Intent(this, HomeActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivity(intent)
+                    finish()
+                }, 3000) // 3-second delay
+
+                // Hide unnecessary buttons
                 binding.buttonCancelRideRider.visibility = View.GONE
-                // Optionally, clear map and reset after a delay
             }
             is BookingUiState.Canceled -> {
                 showBookingStatusCard(

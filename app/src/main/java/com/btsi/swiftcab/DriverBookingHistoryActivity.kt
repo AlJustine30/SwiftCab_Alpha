@@ -9,13 +9,14 @@ import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.*
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.btsi.swiftcab.models.BookingRequest
 
 class DriverBookingHistoryActivity : AppCompatActivity() {
 
     private lateinit var firebaseAuth: FirebaseAuth
-    private lateinit var database: FirebaseDatabase
+    private lateinit var firestore: FirebaseFirestore
     private var currentDriverId: String? = null
 
     private lateinit var recyclerView: RecyclerView
@@ -36,7 +37,7 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
         supportActionBar?.setDisplayShowHomeEnabled(true)
 
         firebaseAuth = FirebaseAuth.getInstance()
-        database = FirebaseDatabase.getInstance()
+        firestore = FirebaseFirestore.getInstance()
         currentDriverId = firebaseAuth.currentUser?.uid
 
         recyclerView = findViewById(R.id.recyclerViewDriverBookingHistory)
@@ -58,19 +59,18 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
 
     private fun fetchDriverBookingHistory() {
         Log.d(TAG, "Fetching booking history for driver ID: $currentDriverId")
-        val bookingsRef = database.getReference("Bookings")
-        val query = bookingsRef.orderByChild("driverId").equalTo(currentDriverId)
-
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
+        firestore.collection("bookinghistory")
+            .whereEqualTo("driverId", currentDriverId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .get()
+            .addOnSuccessListener { documents ->
                 bookingHistoryList.clear()
-                if (snapshot.exists()) {
-                    for (historySnapshot in snapshot.children) {
-                        val booking = historySnapshot.getValue(BookingRequest::class.java)
-                        booking?.let { bookingHistoryList.add(it) }
+                if (!documents.isEmpty) {
+                    for (document in documents) {
+                        val booking = document.toObject(BookingRequest::class.java)
+                        booking.bookingId = document.id
+                        bookingHistoryList.add(booking)
                     }
-                    // Sort by timestamp descending (newest first)
-                    bookingHistoryList.sortByDescending { it.timestamp }
                     adapter.updateData(bookingHistoryList)
                     textViewNoHistory.visibility = View.GONE
                     recyclerView.visibility = View.VISIBLE
@@ -81,14 +81,12 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
                     recyclerView.visibility = View.GONE
                 }
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Failed to fetch driver booking history: ${error.message}")
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to fetch driver booking history: ${e.message}")
                 textViewNoHistory.text = "Error fetching history."
                 textViewNoHistory.visibility = View.VISIBLE
                 recyclerView.visibility = View.GONE
             }
-        })
     }
 
     override fun onSupportNavigateUp(): Boolean {
