@@ -1,6 +1,7 @@
 package com.btsi.swiftcab
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -8,6 +9,9 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.RatingBar
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
@@ -355,7 +359,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             "COMPLETED" -> {
                 binding.tripActionButton.text = "Trip Completed"
                 binding.tripActionButton.isEnabled = false
-                showDefaultView()
+                showRatingDialog(booking)
             }
             else -> {
                 binding.tripActionButton.visibility = View.GONE
@@ -511,6 +515,44 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
+
+    private fun showRatingDialog(booking: BookingRequest) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
+        val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
+        val commentsEditText = dialogView.findViewById<EditText>(R.id.editTextComments)
+        val submitButton = dialogView.findViewById<Button>(R.id.buttonSubmitRating)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        submitButton.setOnClickListener {
+            val rating = ratingBar.rating
+            val comments = commentsEditText.text.toString()
+            saveRating(booking, rating, comments)
+            dialog.dismiss()
+            showDefaultView()
+        }
+
+        dialog.show()
+    }
+
+    private fun saveRating(booking: BookingRequest, rating: Float, comments: String) {
+        val bookingId = booking.bookingId ?: return
+        val ratingData = mapOf(
+            "driverRating" to rating,
+            "driverComments" to comments
+        )
+        db.getReference("bookingRequests").child(bookingId).updateChildren(ratingData)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Rating submitted successfully", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Failed to submit rating", Toast.LENGTH_SHORT).show()
+            }
+    }
+
 
     override fun onResume() {
         super.onResume()
