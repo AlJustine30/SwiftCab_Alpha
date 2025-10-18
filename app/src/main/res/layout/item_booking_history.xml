@@ -54,15 +54,13 @@
             android:textStyle="italic"
             android:text="Status: N/A" />
 
-        <!-- Uncomment if you add fare display
-        <TextView
-            android:id="@+id/textViewHistoryPrice"
+        <Button
+            android:id="@+id/btnRate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle2"
-            android:text="Fare: N/A" />
-        -->
+            android:layout_marginTop="8dp"
+            android:text="Rate Driver"
+            android:visibility="gone" />
 
     </LinearLayout>
 

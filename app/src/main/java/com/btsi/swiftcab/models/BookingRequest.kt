@@ -19,5 +19,7 @@ data class BookingRequest(
     val driverName: String? = null,
     val driverVehicleDetails: String? = null,
     val cancellationReason: String? = null, // Added to handle cancellation reasons from the backend
-    val driverLocation: HashMap<String, Double>? = null
+    val driverLocation: HashMap<String, Double>? = null,
+    var riderRated: Boolean = false,
+    var driverRated: Boolean = false
 )

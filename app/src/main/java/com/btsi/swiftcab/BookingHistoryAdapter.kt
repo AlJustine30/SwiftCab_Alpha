@@ -3,6 +3,7 @@ package com.btsi.swiftcab
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.btsi.swiftcab.models.BookingRequest
@@ -12,7 +13,8 @@ import java.util.Locale
 
 class BookingHistoryAdapter(
     private val bookingHistoryList: List<BookingRequest>,
-    private val userType: String // "driver" or "rider"
+    private val userType: String, // "driver" or "rider"
+    private val onRateClick: (BookingRequest) -> Unit
 ) : RecyclerView.Adapter<BookingHistoryAdapter.BookingHistoryViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookingHistoryViewHolder {
@@ -23,32 +25,43 @@ class BookingHistoryAdapter(
 
     override fun onBindViewHolder(holder: BookingHistoryViewHolder, position: Int) {
         val currentItem = bookingHistoryList[position]
-        val context = holder.itemView.context
-
-        holder.textViewDate.text = context.getString(R.string.history_date, formatDate(currentItem.timestamp))
-        if (userType == "driver") {
-            holder.textViewUserName.text = context.getString(R.string.history_rider, currentItem.riderName ?: "N/A")
-        } else {
-            holder.textViewUserName.text = context.getString(R.string.history_driver, currentItem.driverName ?: "N/A")
-        }
-        holder.textViewPickup.text = context.getString(R.string.history_pickup, currentItem.pickupAddress)
-        holder.textViewDestination.text = context.getString(R.string.history_destination, currentItem.destinationAddress)
-        holder.textViewStatus.text = context.getString(R.string.history_status, currentItem.status)
+        holder.bind(currentItem, userType, onRateClick)
     }
 
     override fun getItemCount() = bookingHistoryList.size
 
-    private fun formatDate(timestamp: Long?): String {
-        if (timestamp == null) return "N/A"
-        val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-        return sdf.format(Date(timestamp))
-    }
-
     class BookingHistoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val textViewDate: TextView = itemView.findViewById(R.id.textViewHistoryDate)
-        val textViewUserName: TextView = itemView.findViewById(R.id.textViewHistoryUserName)
-        val textViewPickup: TextView = itemView.findViewById(R.id.textViewHistoryPickup)
-        val textViewDestination: TextView = itemView.findViewById(R.id.textViewHistoryDestination)
-        val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
+        private val textViewDate: TextView = itemView.findViewById(R.id.textViewHistoryDate)
+        private val textViewUserName: TextView = itemView.findViewById(R.id.textViewHistoryUserName)
+        private val textViewPickup: TextView = itemView.findViewById(R.id.textViewHistoryPickup)
+        private val textViewDestination: TextView = itemView.findViewById(R.id.textViewHistoryDestination)
+        private val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
+        private val btnRate: Button = itemView.findViewById(R.id.btnRate)
+
+        fun bind(booking: BookingRequest, userType: String, onRateClick: (BookingRequest) -> Unit) {
+            val context = itemView.context
+            textViewDate.text = context.getString(R.string.history_date, formatDate(booking.timestamp))
+            if (userType == "driver") {
+                textViewUserName.text = context.getString(R.string.history_rider, booking.riderName ?: "N/A")
+                btnRate.visibility = View.GONE // Drivers rate from the dashboard
+            } else {
+                textViewUserName.text = context.getString(R.string.history_driver, booking.driverName ?: "N/A")
+                if (booking.status == "completed" && !booking.riderRated) {
+                    btnRate.visibility = View.VISIBLE
+                    btnRate.setOnClickListener { onRateClick(booking) }
+                } else {
+                    btnRate.visibility = View.GONE
+                }
+            }
+            textViewPickup.text = context.getString(R.string.history_pickup, booking.pickupAddress)
+            textViewDestination.text = context.getString(R.string.history_destination, booking.destinationAddress)
+            textViewStatus.text = context.getString(R.string.history_status, booking.status)
+        }
+
+        private fun formatDate(timestamp: Long?): String {
+            if (timestamp == null) return "N/A"
+            val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+            return sdf.format(Date(timestamp))
+        }
     }
 }
