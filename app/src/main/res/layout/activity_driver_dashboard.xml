@@ -79,6 +79,28 @@
                     android:layout_height="wrap_content"
                     android:text="@string/new_booking_request_title"/>
 
+                <ImageView
+                    android:id="@+id/imageViewPassengerProfileRequest"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:src="@drawable/ic_driver_profile"
+                    android:contentDescription="Passenger profile image" />
+
+                <TextView
+                    android:id="@+id/textViewPassengerNameInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Passenger: " />
+
+                <TextView
+                    android:id="@+id/textViewPassengerPhoneInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Phone: " />
+
                 <TextView
                     android:id="@+id/textViewPickupLocationInfo"
                     android:layout_width="wrap_content"
@@ -151,11 +173,26 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
+                    <ImageView
+                        android:id="@+id/imageViewPassengerProfileTrip"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_driver_profile"
+                        android:contentDescription="Passenger profile image" />
+
                     <TextView
                         android:id="@+id/passenger_name_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Passenger: " />
+
+                    <TextView
+                        android:id="@+id/passenger_phone_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Phone: " />
 
                     <TextView
                         android:id="@+id/pickup_address_text"

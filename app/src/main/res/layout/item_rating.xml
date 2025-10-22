@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/itemRaterName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Rater:"
+        android:textStyle="bold"/>
+
+    <RatingBar
+        android:id="@+id/itemRatingBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:isIndicator="true"
+        android:numStars="5"
+        android:stepSize="0.5" />
+
+    <TextView
+        android:id="@+id/itemComment"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No comments"
+        android:layout_marginTop="4dp"/>
+
+    <TextView
+        android:id="@+id/itemDate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Jan 1, 2024"
+        android:textSize="12sp"
+        android:textColor="#666"
+        android:layout_marginTop="2dp"/>
+
+</LinearLayout>

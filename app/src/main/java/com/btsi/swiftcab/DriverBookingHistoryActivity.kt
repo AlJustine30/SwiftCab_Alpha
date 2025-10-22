@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.btsi.swiftcab.models.BookingRequest
+import com.btsi.swiftcab.models.Rating
 
 class DriverBookingHistoryActivity : AppCompatActivity() {
 
@@ -75,6 +76,9 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
                     textViewNoHistory.visibility = View.GONE
                     recyclerView.visibility = View.VISIBLE
                     Log.d(TAG, "Fetched ${bookingHistoryList.size} history items.")
+
+                    // Load ratings for completed trips rated by riders
+                    loadRiderRatingsForHistory()
                 } else {
                     Log.d(TAG, "No booking history found for driver ID: $currentDriverId")
                     textViewNoHistory.visibility = View.VISIBLE
@@ -87,6 +91,28 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
                 textViewNoHistory.visibility = View.VISIBLE
                 recyclerView.visibility = View.GONE
             }
+    }
+
+    private fun loadRiderRatingsForHistory() {
+        val driverId = currentDriverId ?: return
+        val itemsNeedingRatings = bookingHistoryList.filter { it.bookingId != null && it.status == "COMPLETED" }
+        itemsNeedingRatings.forEach { booking ->
+            val bookingId = booking.bookingId ?: return@forEach
+            firestore.collection("ratings")
+                .whereEqualTo("bookingId", bookingId)
+                .whereEqualTo("ratedId", driverId)
+                .get()
+                .addOnSuccessListener { snap ->
+                    val r = snap.documents.firstOrNull()?.toObject(Rating::class.java)
+                    if (r != null) {
+                        booking.riderRating = r.rating
+                        adapter.updateData(bookingHistoryList)
+                    }
+                }
+                .addOnFailureListener {
+                    // Ignore rating load failures silently
+                }
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

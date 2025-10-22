@@ -7,6 +7,7 @@ data class BookingRequest(
     var bookingId: String? = null,
     val riderId: String? = null,
     val riderName: String? = null,
+    val riderPhone: String? = null,
     val pickupLatitude: Double? = null,
     val pickupLongitude: Double? = null,
     val destinationLatitude: Double? = null,
@@ -17,9 +18,12 @@ data class BookingRequest(
     val timestamp: Long? = null,
     val driverId: String? = null,
     val driverName: String? = null,
+    val driverPhone: String? = null,
     val driverVehicleDetails: String? = null,
     val cancellationReason: String? = null, // Added to handle cancellation reasons from the backend
     val driverLocation: HashMap<String, Double>? = null,
     var riderRated: Boolean = false,
-    var driverRated: Boolean = false
+    var driverRated: Boolean = false,
+    var riderRating: Float? = null
 )
+

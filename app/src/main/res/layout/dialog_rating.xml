@@ -29,6 +29,13 @@
         android:hint="Additional comments (optional)"
         android:inputType="textMultiLine" />
 
+    <CheckBox
+        android:id="@+id/checkboxAnonymous"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Post as anonymous" />
+
     <Button
         android:id="@+id/buttonSubmitRating"
         android:layout_width="match_parent"

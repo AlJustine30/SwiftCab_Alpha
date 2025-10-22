@@ -7,5 +7,8 @@ data class Rating(
     val ratedId: String = "",
     val rating: Float = 0.0f,
     val comments: String = "",
+    val raterName: String = "",
+    val anonymous: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
+

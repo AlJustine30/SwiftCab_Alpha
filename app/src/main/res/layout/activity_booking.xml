@@ -191,12 +191,61 @@
                 android:layout_marginBottom="4dp"/>
 
             <TextView
+                android:id="@+id/textViewDriverPhoneStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Phone: Loading..."
+                style="?attr/textAppearanceBody1"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
                 android:id="@+id/textViewVehicleDetailsStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Vehicle: Loading..."
                 style="?attr/textAppearanceBody1"
                 android:layout_marginBottom="8dp"/>
+
+            <ImageView
+                android:id="@+id/imageViewDriverProfile"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginBottom="8dp"
+                android:src="@drawable/ic_driver_profile"
+                android:contentDescription="Driver profile image" />
+
+            <!-- Driver rating summary -->
+            <LinearLayout
+                android:id="@+id/driverRatingSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <RatingBar
+                    android:id="@+id/driverAverageRatingBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:isIndicator="true"
+                    android:numStars="5"
+                    android:stepSize="0.5" />
+
+                <TextView
+                    android:id="@+id/textViewDriverRatingCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="(0)"
+                    android:layout_marginStart="8dp"
+                    style="?attr/textAppearanceBody2"/>
+            </LinearLayout>
+            
+            <Button
+                android:id="@+id/buttonViewAllDriverReviews"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="View all driver reviews"
+                android:layout_marginTop="8dp"/>
             
             <TextView
                 android:id="@+id/textViewTripStatusMessage"
@@ -304,3 +353,4 @@
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+

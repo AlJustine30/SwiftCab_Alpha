@@ -1,8 +1,6 @@
 package com.btsi.swiftcab
 
 import android.os.Bundle
-import android.view.MenuItem
-import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RatingBar
@@ -45,7 +43,7 @@ class BookingHistoryActivity : AppCompatActivity() {
         recyclerViewBookingHistory.layoutManager = LinearLayoutManager(this)
 
         bookingHistoryAdapter = BookingHistoryAdapter(bookingHistoryList, "rider") { booking ->
-            if (booking.status == "completed" && !booking.riderRated) {
+            if (booking.status == "COMPLETED" && !booking.riderRated) {
                 showRatingDialog(booking)
             } else {
                 Toast.makeText(this, "You have already rated this trip.", Toast.LENGTH_SHORT).show()
@@ -59,8 +57,9 @@ class BookingHistoryActivity : AppCompatActivity() {
     private fun showRatingDialog(booking: BookingRequest) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
-        val etComments = dialogView.findViewById<EditText>(R.id.etComments)
-        val btnSubmit = dialogView.findViewById<Button>(R.id.btnSubmitRating)
+        val etComments = dialogView.findViewById<EditText>(R.id.editTextComments)
+        val checkboxAnonymous = dialogView.findViewById<android.widget.CheckBox>(R.id.checkboxAnonymous)
+        val btnSubmit = dialogView.findViewById<Button>(R.id.buttonSubmitRating)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle("Rate Your Driver")
@@ -70,8 +69,9 @@ class BookingHistoryActivity : AppCompatActivity() {
         btnSubmit.setOnClickListener {
             val rating = ratingBar.rating
             val comments = etComments.text.toString()
+            val anonymous = checkboxAnonymous.isChecked
             if (rating > 0) {
-                saveRating(booking, rating, comments)
+                saveRating(booking, rating, comments, anonymous)
                 dialog.dismiss()
             } else {
                 Toast.makeText(this, "Please provide a rating.", Toast.LENGTH_SHORT).show()
@@ -81,19 +81,37 @@ class BookingHistoryActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun saveRating(booking: BookingRequest, rating: Float, comments: String) {
+    private fun saveRating(booking: BookingRequest, rating: Float, comments: String, anonymous: Boolean) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val resolvedRaterName = (booking.riderName?.takeIf { it.isNotBlank() }
+            ?: auth.currentUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: "")
+
         val ratingData = Rating(
-            bookingId = booking.bookingId,
-            userId = auth.currentUser!!.uid,
-            rating = rating.toDouble(),
-            comment = comments,
+            bookingId = booking.bookingId ?: "",
+            raterId = uid,
+            ratedId = booking.driverId ?: "",
+            rating = rating,
+            comments = comments,
+            raterName = resolvedRaterName,
+            anonymous = anonymous,
             timestamp = System.currentTimeMillis()
         )
 
         firestore.collection("ratings").add(ratingData)
             .addOnSuccessListener {
-                firestore.collection("bookinghistory").document(booking.bookingId!!)
-                    .update("riderRated", true)
+                booking.bookingId?.let { id ->
+                    firestore.collection("bookinghistory").document(id)
+                        .update("riderRated", true)
+                        .addOnFailureListener { e ->
+                            Toast.makeText(this, "Failed to mark trip as rated: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                }
                 Toast.makeText(this, "Rating submitted successfully!", Toast.LENGTH_SHORT).show()
                 fetchRiderBookingHistory() // Refresh the list
             }
@@ -101,7 +119,6 @@ class BookingHistoryActivity : AppCompatActivity() {
                 Toast.makeText(this, "Failed to submit rating: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
-
 
     private fun fetchRiderBookingHistory() {
         val currentUser = auth.currentUser
@@ -128,6 +145,9 @@ class BookingHistoryActivity : AppCompatActivity() {
                 }
                 bookingHistoryAdapter.notifyDataSetChanged()
                 updateUiBasedOnHistory()
+
+                // Load ratings for completed & rated trips and bind to list
+                loadRatingsForHistory(userId)
             }
             .addOnFailureListener { exception ->
                 Toast.makeText(
@@ -141,19 +161,39 @@ class BookingHistoryActivity : AppCompatActivity() {
 
     private fun updateUiBasedOnHistory() {
         if (bookingHistoryList.isEmpty()) {
-            textViewNoHistory.visibility = View.VISIBLE
-            recyclerViewBookingHistory.visibility = View.GONE
+            textViewNoHistory.visibility = android.view.View.VISIBLE
+            recyclerViewBookingHistory.visibility = android.view.View.GONE
         } else {
-            textViewNoHistory.visibility = View.GONE
-            recyclerViewBookingHistory.visibility = View.VISIBLE
+            textViewNoHistory.visibility = android.view.View.GONE
+            recyclerViewBookingHistory.visibility = android.view.View.VISIBLE
         }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            onBackPressedDispatcher.onBackPressed()
-            return true
+    private fun loadRatingsForHistory(riderId: String) {
+        val itemsNeedingRatings = bookingHistoryList.filter { it.bookingId != null && it.riderRated && it.status == "COMPLETED" }
+        if (itemsNeedingRatings.isEmpty()) return
+
+        itemsNeedingRatings.forEach { booking ->
+            val bookingId = booking.bookingId ?: return@forEach
+            firestore.collection("ratings")
+                .whereEqualTo("bookingId", bookingId)
+                .whereEqualTo("raterId", riderId)
+                .get()
+                .addOnSuccessListener { snap ->
+                    val r = snap.documents.firstOrNull()?.toObject(Rating::class.java)
+                    if (r != null) {
+                        booking.riderRating = r.rating
+                        bookingHistoryAdapter.notifyDataSetChanged()
+                    }
+                }
+                .addOnFailureListener {
+                    // Silently ignore rating load failures for history UI
+                }
         }
-        return super.onOptionsItemSelected(item)
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
     }
 }

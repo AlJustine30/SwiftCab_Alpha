@@ -5,27 +5,23 @@
 
     <group android:checkableBehavior="single">
         <item
-            android:id="@+id/nav_driver_dashboard_home"
-            android:title="Dashboard" />
-        <item
             android:id="@+id/nav_driver_profile"
             android:title="Profile" />
         <item
             android:id="@+id/nav_driver_ride_history"
             android:title="Ride History" />
         <item
+            android:id="@+id/nav_driver_ratings"
+            android:title="Ratings" />
+        <item
             android:id="@+id/nav_driver_earnings"
             android:title="Earnings" />
-        <item
-            android:id="@+id/nav_driver_settings"
-            android:title="Settings" />
     </group>
 
-    <item android:title="Account">
-        <menu>
-            <item
-                android:id="@+id/nav_driver_logout"
-                android:title="Logout" />
-        </menu>
-    </item>
+    <!-- Logout without Account section header -->
+    <group android:id="@+id/group_logout" android:checkableBehavior="none">
+        <item
+            android:id="@+id/nav_driver_logout"
+            android:title="Logout" />
+    </group>
 </menu>

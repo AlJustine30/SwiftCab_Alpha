@@ -3,6 +3,7 @@ package com.btsi.swiftcab
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.RatingBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import java.text.SimpleDateFormat
@@ -20,6 +21,7 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         val pickupTextView: TextView = view.findViewById(R.id.textViewDriverHistoryPickup)
         val destinationTextView: TextView = view.findViewById(R.id.textViewDriverHistoryDestination)
         val statusTextView: TextView = view.findViewById(R.id.textViewDriverHistoryStatus)
+        val ratingBar: RatingBar = view.findViewById(R.id.ratingBarDriverHistory)
         // val priceTextView: TextView = view.findViewById(R.id.textViewDriverHistoryPrice) // Uncomment if price is used
     }
 
@@ -39,6 +41,14 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         holder.statusTextView.text = "Status: ${booking.status ?: "N/A"}"
         // holder.priceTextView.text = String.format("Fare: $%.2f", booking.fare ?: 0.0) // to be added
         // holder.priceTextView.visibility = if (booking.fare != null) View.VISIBLE else View.GONE
+
+        val rating = booking.riderRating
+        if (rating != null && rating > 0f) {
+            holder.ratingBar.visibility = View.VISIBLE
+            holder.ratingBar.rating = rating
+        } else {
+            holder.ratingBar.visibility = View.GONE
+        }
     }
 
     override fun getItemCount() = bookingHistoryList.size

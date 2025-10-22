@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+
+    // Ratings: allow any signed-in user to read driver ratings
+    match /ratings/{ratingId} {
+      // Read ratings for any user (e.g., passengers viewing driver ratings)
+      allow get, list: if isSignedIn();
+
+      // Only the rater can create a rating; basic validations
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['ratedId','raterId','rating','comments'])
+        && request.resource.data.raterId == request.auth.uid
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+
+      // Disallow updates/deletes to preserve integrity
+      allow update, delete: if false;
+    }
+
+    // Users and drivers profile images: readable by signed-in users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // prevent list over entire collection
+    }
+    match /drivers/{driverId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+    }
+
+    // Public summaries (e.g., driver_rating_summaries_* docs)
+    match /public/{docId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    // bookingRequests are managed by server/CF; restrict wide reads
+    match /bookingRequests/{bookingId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create, update: if false; // via callable functions only
+      allow delete: if false;
+    }
+  }
+}

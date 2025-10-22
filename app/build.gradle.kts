@@ -40,6 +40,8 @@ android {
     }
 }
 
+// Removed Kotlin toolchain block to use Gradle runtime JDK
+
 dependencies {
 
     implementation("androidx.core:core-ktx:1.9.0")

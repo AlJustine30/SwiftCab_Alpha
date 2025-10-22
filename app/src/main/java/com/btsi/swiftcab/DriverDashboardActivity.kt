@@ -26,14 +26,20 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
+import android.widget.ImageView
+import com.bumptech.glide.Glide
 
 class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -49,11 +55,13 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val db: FirebaseDatabase = FirebaseDatabase.getInstance()
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
     private var driverRef: DatabaseReference? = null
     private var offersListenerReference: DatabaseReference? = null
     private var offersValueListener: ValueEventListener? = null
     private var activeBookingListener: ValueEventListener? = null
     private var activeBookingRef: DatabaseReference? = null
+    private var playServicesAvailable: Boolean = false
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1
@@ -65,10 +73,15 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         binding = ActivityDriverDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        playServicesAvailable = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.driver_map) as? SupportMapFragment
-        mapFragment?.getMapAsync(this)
+        if (playServicesAvailable) {
+            mapFragment?.getMapAsync(this)
+        } else {
+            Toast.makeText(this, "Google Play services not available; map disabled.", Toast.LENGTH_SHORT).show()
+        }
 
         setupToolbarAndDrawer()
         setupUI()
@@ -76,9 +89,11 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-        // Enable my location button on the map
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        // Enable my location button on the map only if Play Services available
+        if (playServicesAvailable && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             mMap?.isMyLocationEnabled = true
+        } else if (!playServicesAvailable) {
+            Toast.makeText(this, "Google Play services not available; map location disabled.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -93,7 +108,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         )
         binding.drawerLayoutDriverDashboard.addDrawerListener(toggle)
         toggle.syncState()
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        toggle.isDrawerIndicatorEnabled = true
+        supportActionBar?.setDisplayHomeAsUpEnabled(false)
     }
 
     private fun setupUI() {
@@ -118,10 +134,13 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                     Toast.makeText(this, "Dashboard", Toast.LENGTH_SHORT).show()
                 }
                 R.id.nav_driver_profile -> {
-                    Toast.makeText(this, "Profile clicked", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, ProfileActivity::class.java))
                 }
                 R.id.nav_driver_ride_history -> {
                     startActivity(Intent(this, DriverBookingHistoryActivity::class.java))
+                }
+                R.id.nav_driver_ratings -> {
+                    startActivity(Intent(this, DriverRatingsActivity::class.java))
                 }
                 R.id.nav_driver_earnings -> {
                     Toast.makeText(this, "Earnings clicked", Toast.LENGTH_SHORT).show()
@@ -132,8 +151,6 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 R.id.nav_driver_logout -> {
                     goOffline()
                     auth.signOut()
-                    // You should have a main/login activity to return to.
-                    // Assuming MainActivity is your entry point.
                     val intent = Intent(this, MainActivity::class.java)
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                     startActivity(intent)
@@ -160,23 +177,22 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), LOCATION_PERMISSION_REQUEST_CODE)
             return
         }
+        if (!playServicesAvailable) {
+            Toast.makeText(this, "Google Play services not available; cannot go online.", Toast.LENGTH_SHORT).show()
+            binding.switchDriverStatus.isChecked = false
+            return
+        }
+        binding.switchDriverStatus.text = getString(R.string.status_online)
         driverRef?.onDisconnect()?.removeValue()
+        // Ensure driver metadata is present for acceptBooking
+        backfillDriverProfileToRealtime()
         startLocationUpdates()
         attachDriverOffersListener()
         Toast.makeText(this, "You are now online", Toast.LENGTH_SHORT).show()
     }
 
-    private fun goOffline() {
-        stopLocationUpdates()
-        driverRef?.onDisconnect()?.cancel()
-        driverRef?.removeValue()
-        detachDriverOffersListener()
-        detachActiveBookingListener()
-        showDefaultView()
-        Toast.makeText(this, "You are now offline", Toast.LENGTH_SHORT).show()
-    }
-
     private fun startLocationUpdates() {
+        if (!playServicesAvailable) return
         val locationRequest = LocationRequest.create().apply {
             interval = 10000
             fastestInterval = 5000
@@ -187,11 +203,12 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
                     val driverData = mapOf(
-                        "latitude" to location.latitude,
-                        "longitude" to location.longitude,
+                        "location/latitude" to location.latitude,
+                        "location/longitude" to location.longitude,
                         "isOnline" to true
                     )
-                    driverRef?.setValue(driverData)
+                    // Preserve metadata like displayName and vehicleDetails
+                    driverRef?.updateChildren(driverData)
 
                     // NEW: If there is an active booking, update its driverLocation
                     currentBooking?.bookingId?.let { bookingId ->
@@ -208,6 +225,58 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             return
         }
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
+    }
+
+    private fun goOffline() {
+        binding.switchDriverStatus.text = getString(R.string.status_offline)
+        stopLocationUpdates()
+        driverRef?.onDisconnect()?.cancel()
+        driverRef?.removeValue()
+        detachDriverOffersListener()
+        detachActiveBookingListener()
+        showDefaultView()
+        Toast.makeText(this, "You are now offline", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun backfillDriverProfileToRealtime() {
+        val uid = auth.currentUser?.uid ?: return
+        val defaultName = auth.currentUser?.displayName
+
+        firestore.collection("drivers").document(uid).get()
+            .addOnSuccessListener { driverDoc ->
+                val adminName = driverDoc.getString("name")
+                val adminPhone = driverDoc.getString("phone")
+                val vehicleMap = driverDoc.get("vehicle") as? Map<*, *>
+                val make = vehicleMap?.get("make") as? String
+                val model = vehicleMap?.get("model") as? String
+                val color = vehicleMap?.get("color") as? String
+                val plate = vehicleMap?.get("licensePlate") as? String
+                val year = vehicleMap?.get("year")?.toString()
+
+                val vehicleDetails = listOfNotNull(
+                    listOfNotNull(make, model).filter { it.isNotBlank() }.joinToString(" ").takeIf { it.isNotBlank() },
+                    color?.takeIf { it.isNotBlank() },
+                    plate?.let { "Plate $it" },
+                    year?.let { "Year $it" }
+                ).joinToString(", ")
+
+                val resolvedName = (adminName?.takeIf { it.isNotBlank() } ?: defaultName ?: "Your Driver")
+                val updates = mutableMapOf<String, Any>(
+                    "displayName" to resolvedName,
+                )
+                if (!vehicleDetails.isNullOrBlank()) updates["vehicleDetails"] = vehicleDetails else updates["vehicleDetails"] = "Vehicle"
+                if (!adminPhone.isNullOrBlank()) updates["phone"] = adminPhone
+
+                driverRef?.updateChildren(updates)
+            }
+            .addOnFailureListener {
+                val resolvedName = (defaultName ?: "Your Driver")
+                val updates = mutableMapOf<String, Any>(
+                    "displayName" to resolvedName,
+                    "vehicleDetails" to "Vehicle"
+                )
+                driverRef?.updateChildren(updates)
+            }
     }
 
     private fun stopLocationUpdates() {
@@ -248,6 +317,11 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.bookingRequestLayout.visibility = View.VISIBLE
         binding.textViewPickupLocationInfo.text = "Pickup: ${bookingRequest.pickupAddress}"
         binding.textViewDestinationLocationInfo.text = "Destination: ${bookingRequest.destinationAddress}"
+        binding.textViewPassengerNameInfo.text = "Passenger: ${bookingRequest.riderName ?: "Unknown"}"
+        binding.textViewPassengerPhoneInfo.text = "Phone: ${bookingRequest.riderPhone ?: "Unknown"}"
+
+        // Load passenger image for booking offer
+        loadPassengerProfileImage(bookingRequest.riderId, binding.imageViewPassengerProfileRequest)
 
         binding.buttonAcceptBooking.setOnClickListener {
             acceptBooking(bookingRequest.bookingId)
@@ -284,6 +358,26 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 val booking = snapshot.getValue(BookingRequest::class.java)
                 currentBooking = booking
                 if (booking != null && booking.driverId == auth.currentUser?.uid) {
+                    // Backfill driver details if missing to ensure rider sees names
+                    val uid = auth.currentUser?.uid ?: return
+                    val updates = mutableMapOf<String, Any>()
+                    if (booking.driverId == null) updates["driverId"] = uid
+
+                    firestore.collection("users").document(uid).get().addOnSuccessListener { doc ->
+                        val phone = doc.getString("phone")
+                        val firestoreName = doc.getString("name")
+                        if (booking.driverPhone.isNullOrEmpty() && phone != null) {
+                            updates["driverPhone"] = phone
+                        }
+                        if (booking.driverName.isNullOrEmpty()) {
+                            val nameToUse = auth.currentUser?.displayName?.takeIf { !it.isNullOrBlank() } ?: firestoreName ?: "Driver"
+                            updates["driverName"] = nameToUse
+                        }
+                        if (updates.isNotEmpty()) {
+                            activeBookingRef?.updateChildren(updates)
+                        }
+                    }
+
                     updateUiForActiveTrip(booking)
                 } else {
                     showDefaultView()
@@ -308,8 +402,12 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updateUiForActiveTrip(booking: BookingRequest) {
         showActiveTripView()
         binding.passengerNameText.text = "Passenger: ${booking.riderName}"
+        binding.passengerPhoneText.text = "Phone: ${booking.riderPhone ?: "Unknown"}"
         binding.pickupAddressText.text = "Pickup: ${booking.pickupAddress}"
         binding.dropoffAddressText.text = "Dropoff: ${booking.destinationAddress}"
+
+        // Load passenger image for active trip card
+        loadPassengerProfileImage(booking.riderId, binding.imageViewPassengerProfileTrip)
 
         val pickupLatLng = LatLng(booking.pickupLatitude ?: 0.0, booking.pickupLongitude ?: 0.0)
         val dropoffLatLng = LatLng(booking.destinationLatitude ?: 0.0, booking.destinationLongitude ?: 0.0)
@@ -322,7 +420,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         // Draw route if trip is active
         val shouldDrawRoute = booking.status == "EN_ROUTE_TO_PICKUP" || booking.status == "EN_ROUTE_TO_DROPOFF"
         if (shouldDrawRoute) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (playServicesAvailable && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
                     if(driverLocation != null) {
                         val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
@@ -332,37 +430,50 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         } else {
-            // If no route, just zoom to fit pickup and dropoff markers
-            val bounds = LatLngBounds.Builder().include(pickupLatLng).include(dropoffLatLng).build()
-            mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+            currentPolyline?.remove()
         }
 
-
-        // Update the action button based on the trip status
+        // Update action button based on status
         when (booking.status) {
             "ACCEPTED" -> {
-                binding.tripActionButton.text = "Start Trip (Navigate to Pickup)"
+                binding.tripActionButton.text = "Start Trip"
+                binding.tripActionButton.visibility = View.VISIBLE
+                binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
             }
             "EN_ROUTE_TO_PICKUP" -> {
-                binding.tripActionButton.text = "Confirm Arrival at Pickup"
+                binding.tripActionButton.text = "Arrived at Pickup"
+                binding.tripActionButton.visibility = View.VISIBLE
+                binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
             }
             "ARRIVED_AT_PICKUP" -> {
-                binding.tripActionButton.text = "Start Trip to Destination"
+                binding.tripActionButton.text = "Start Dropoff"
+                binding.tripActionButton.visibility = View.VISIBLE
+                binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
             }
             "EN_ROUTE_TO_DROPOFF" -> {
                 binding.tripActionButton.text = "Complete Trip"
+                binding.tripActionButton.visibility = View.VISIBLE
+                binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
             }
             "COMPLETED" -> {
-                binding.tripActionButton.text = "Trip Completed"
-                binding.tripActionButton.isEnabled = false
-                showRatingDialog(booking)
+                binding.tripActionButton.visibility = View.GONE
+                detachActiveBookingListener()
+                currentBooking = null
+                showDefaultView()
+            }
+            "CANCELED" -> {
+                binding.tripActionButton.visibility = View.GONE
+                detachActiveBookingListener()
+                currentBooking = null
+                showDefaultView()
             }
             else -> {
                 binding.tripActionButton.visibility = View.GONE
+                binding.tripActionButton.isEnabled = false
             }
         }
     }
@@ -392,7 +503,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 Log.d(TAG, "Trip status updated to $newStatus")
                 // The listener will handle UI changes. Now, draw route if needed.
                 if (newStatus == "EN_ROUTE_TO_PICKUP" || newStatus == "EN_ROUTE_TO_DROPOFF") {
-                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return@addOnSuccessListener
+                    if (!playServicesAvailable || ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return@addOnSuccessListener
                     fusedLocationClient.lastLocation.addOnSuccessListener { driverLocation ->
                         if (driverLocation != null) {
                             val origin = LatLng(driverLocation.latitude, driverLocation.longitude)
@@ -404,17 +515,68 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                             getDirectionsAndDrawRoute(origin, destination)
                         }
                     }
-                } else if (newStatus == "ARRIVED_AT_PICKUP" || newStatus == "COMPLETED") {
-                    // Clear the route when arriving or completing
-                    currentPolyline?.remove()
                 }
+                binding.tripActionButton.isEnabled = true
             }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to update trip status", e)
-                Toast.makeText(this, "Error: Could not update trip status.", Toast.LENGTH_SHORT).show()
+            .addOnFailureListener {
+                Log.e(TAG, "Failed to update trip status", it)
                 binding.tripActionButton.isEnabled = true
             }
     }
+
+    private fun showDefaultView() {
+        binding.driverStatusLayout.visibility = View.VISIBLE
+        binding.tripDetailsMapContainer.visibility = View.GONE
+        binding.tripDetailsCard.visibility = View.GONE
+        binding.bookingRequestLayout.visibility = View.GONE // Hide booking request as well
+        mMap?.clear()
+        currentPolyline?.remove()
+    }
+
+    private fun showActiveTripView() {
+        binding.driverStatusLayout.visibility = View.GONE
+        binding.bookingRequestLayout.visibility = View.GONE
+        binding.tripDetailsMapContainer.visibility = View.VISIBLE
+        binding.tripDetailsCard.visibility = View.VISIBLE
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (binding.switchDriverStatus.isChecked) goOnline()
+                if (playServicesAvailable) mMap?.isMyLocationEnabled = true
+            } else {
+                Toast.makeText(this, "Location permission is required to go online.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        auth.currentUser?.uid?.let {
+            db.getReference("bookingRequests").orderByChild("driverId").equalTo(it).get().addOnSuccessListener {
+                if(it.exists()){
+                    for (child in it.children) {
+                        val booking = child.getValue(BookingRequest::class.java)
+                        if (booking != null && booking.status != "COMPLETED" && booking.status != "CANCELED") {
+                            listenForActiveBooking(booking.bookingId!!)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // To prevent memory leaks, we should ensure we go offline and detach listeners
+        if (auth.currentUser != null) {
+            goOffline()
+        }
+    }
+
 
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
         val apiKey = getString(R.string.google_maps_key)
@@ -488,94 +650,20 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
 
-    private fun showDefaultView() {
-        binding.driverStatusLayout.visibility = View.VISIBLE
-        binding.tripDetailsMapContainer.visibility = View.GONE
-        binding.tripDetailsCard.visibility = View.GONE
-        binding.bookingRequestLayout.visibility = View.GONE // Hide booking request as well
-        mMap?.clear()
-        currentPolyline?.remove()
-    }
-
-    private fun showActiveTripView() {
-        binding.driverStatusLayout.visibility = View.GONE
-        binding.bookingRequestLayout.visibility = View.GONE
-        binding.tripDetailsMapContainer.visibility = View.VISIBLE
-        binding.tripDetailsCard.visibility = View.VISIBLE
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                if (binding.switchDriverStatus.isChecked) goOnline()
-                mMap?.isMyLocationEnabled = true
-            } else {
-                Toast.makeText(this, "Location permission is required to go online.", Toast.LENGTH_LONG).show()
-            }
+    // Helper: Load passenger profile image by userId from Firestore
+    private fun loadPassengerProfileImage(userId: String?, target: ImageView?) {
+        if (userId.isNullOrBlank() || target == null) {
+            return
         }
-    }
-
-    private fun showRatingDialog(booking: BookingRequest) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
-        val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
-        val commentsEditText = dialogView.findViewById<EditText>(R.id.editTextComments)
-        val submitButton = dialogView.findViewById<Button>(R.id.buttonSubmitRating)
-
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setCancelable(false)
-            .create()
-
-        submitButton.setOnClickListener {
-            val rating = ratingBar.rating
-            val comments = commentsEditText.text.toString()
-            saveRating(booking, rating, comments)
-            dialog.dismiss()
-            showDefaultView()
-        }
-
-        dialog.show()
-    }
-
-    private fun saveRating(booking: BookingRequest, rating: Float, comments: String) {
-        val bookingId = booking.bookingId ?: return
-        val ratingData = mapOf(
-            "driverRating" to rating,
-            "driverComments" to comments
-        )
-        db.getReference("bookingRequests").child(bookingId).updateChildren(ratingData)
-            .addOnSuccessListener {
-                Toast.makeText(this, "Rating submitted successfully", Toast.LENGTH_SHORT).show()
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "Failed to submit rating", Toast.LENGTH_SHORT).show()
-            }
-    }
-
-
-    override fun onResume() {
-        super.onResume()
-        auth.currentUser?.uid?.let {
-            db.getReference("bookingRequests").orderByChild("driverId").equalTo(it).get().addOnSuccessListener {
-                if(it.exists()){
-                    for (child in it.children) {
-                        val booking = child.getValue(BookingRequest::class.java)
-                        if (booking != null && booking.status != "COMPLETED" && booking.status != "CANCELED") {
-                            listenForActiveBooking(booking.bookingId!!)
-                            break
-                        }
-                    }
+        firestore.collection("users").document(userId).get()
+            .addOnSuccessListener { doc ->
+                val url = doc.getString("profileImageUrl")
+                if (!url.isNullOrBlank()) {
+                    Glide.with(this).load(url).into(target)
                 }
             }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // To prevent memory leaks, we should ensure we go offline and detach listeners
-        if (auth.currentUser != null) {
-            goOffline()
-        }
+            .addOnFailureListener {
+                // Ignore failures; rules may restrict cross-read. Placeholder remains.
+            }
     }
 }

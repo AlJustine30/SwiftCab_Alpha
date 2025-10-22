@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.RatingBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.btsi.swiftcab.models.BookingRequest
@@ -36,6 +37,7 @@ class BookingHistoryAdapter(
         private val textViewPickup: TextView = itemView.findViewById(R.id.textViewHistoryPickup)
         private val textViewDestination: TextView = itemView.findViewById(R.id.textViewHistoryDestination)
         private val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
+        private val ratingBarHistory: RatingBar = itemView.findViewById(R.id.ratingBarHistory)
         private val btnRate: Button = itemView.findViewById(R.id.btnRate)
 
         fun bind(booking: BookingRequest, userType: String, onRateClick: (BookingRequest) -> Unit) {
@@ -46,7 +48,7 @@ class BookingHistoryAdapter(
                 btnRate.visibility = View.GONE // Drivers rate from the dashboard
             } else {
                 textViewUserName.text = context.getString(R.string.history_driver, booking.driverName ?: "N/A")
-                if (booking.status == "completed" && !booking.riderRated) {
+                if (booking.status == "COMPLETED" && !booking.riderRated) {
                     btnRate.visibility = View.VISIBLE
                     btnRate.setOnClickListener { onRateClick(booking) }
                 } else {
@@ -56,6 +58,14 @@ class BookingHistoryAdapter(
             textViewPickup.text = context.getString(R.string.history_pickup, booking.pickupAddress)
             textViewDestination.text = context.getString(R.string.history_destination, booking.destinationAddress)
             textViewStatus.text = context.getString(R.string.history_status, booking.status)
+
+            val rating = booking.riderRating
+            if (rating != null && rating > 0f) {
+                ratingBarHistory.visibility = View.VISIBLE
+                ratingBarHistory.rating = rating
+            } else {
+                ratingBarHistory.visibility = View.GONE
+            }
         }
 
         private fun formatDate(timestamp: Long?): String {

@@ -51,6 +51,16 @@
             android:text="Status: COMPLETED"
             android:textStyle="italic" />
 
+        <RatingBar
+            android:id="@+id/ratingBarDriverHistory"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:isIndicator="true"
+            android:numStars="5"
+            android:stepSize="0.5"
+            android:visibility="gone" />
+
         <!-- You can add fare/price later if it's part of BookingRequest -->
         <TextView
             android:id="@+id/textViewDriverHistoryPrice"

@@ -143,6 +143,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_booking_history -> {
                 startActivity(Intent(this, BookingHistoryActivity::class.java))
             }
+            R.id.nav_rider_ratings -> {
+                startActivity(Intent(this, RiderRatingsActivity::class.java))
+            }
             R.id.nav_logout -> {
                 auth.signOut()
                 val intent = Intent(this, LoginActivity::class.java)
@@ -172,3 +175,4 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         userListener?.remove()
     }
 }
+

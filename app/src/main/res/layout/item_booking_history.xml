@@ -54,6 +54,16 @@
             android:textStyle="italic"
             android:text="Status: N/A" />
 
+        <RatingBar
+            android:id="@+id/ratingBarHistory"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:isIndicator="true"
+            android:numStars="5"
+            android:stepSize="0.5"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/btnRate"
             android:layout_width="wrap_content"

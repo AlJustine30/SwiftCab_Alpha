@@ -1,461 +1,440 @@
 package com.btsi.swiftcab
 
-import android.annotation.SuppressLint
-import android.content.Context
-import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
+import android.Manifest
+import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Toast
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import com.btsi.swiftcab.databinding.ActivityBookingBinding
+import com.btsi.swiftcab.BookingViewModel
+import com.btsi.swiftcab.BookingViewModelFactory
+import com.btsi.swiftcab.BookingUiState
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.api.Status
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.*
-import com.google.android.libraries.places.api.Places
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.firestore.FirebaseFirestore
+import java.util.Locale
+import androidx.appcompat.app.AlertDialog
+import android.widget.Button
+import android.widget.EditText
+import android.widget.RatingBar
+import android.content.Intent
+import com.bumptech.glide.Glide
+import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.gms.maps.model.LatLngBounds
+import android.graphics.Color
+import org.json.JSONObject
+import java.net.URL
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.URL
-
-private const val TAG = "BookingActivity"
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 
 class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var binding: ActivityBookingBinding
-    private val viewModel: BookingViewModel by viewModels {
-        BookingViewModelFactory(
-            FirebaseDatabase.getInstance(),
-            FirebaseAuth.getInstance(),
-            FirebaseFunctions.getInstance(),
-            FirebaseFirestore.getInstance()
-        )
-    }
-
-    private lateinit var mMap: GoogleMap
-    private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
-    private lateinit var geocoder: Geocoder
-
+    private lateinit var viewModel: BookingViewModel
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var mMap: GoogleMap? = null
+    private var playServicesAvailable: Boolean = false
     private var pickupLocationLatLng: LatLng? = null
     private var destinationLatLng: LatLng? = null
-
     private var pickupMarker: Marker? = null
     private var destinationMarker: Marker? = null
+    private var currentPolyline: Polyline? = null
     private var driverMarker: Marker? = null
-    private var routePolyline: Polyline? = null
 
-    private var previousStateClass: Class<out BookingUiState>? = null
+    private lateinit var auth: FirebaseAuth
+    private lateinit var firestore: FirebaseFirestore
 
+    private enum class SelectionMode { NONE, PICKUP, DROPOFF }
+    private var selectionMode: SelectionMode = SelectionMode.NONE
 
-    private enum class SelectionMode {
-        PICKUP, DROPOFF
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+        private const val TAG = "BookingActivity"
     }
-
-    private var currentSelectionMode: SelectionMode = SelectionMode.PICKUP
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityBookingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
+        auth = FirebaseAuth.getInstance()
+        firestore = FirebaseFirestore.getInstance()
 
-        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
-        geocoder = Geocoder(this)
-        if (!Places.isInitialized()) {
-            Places.initialize(applicationContext, getString(R.string.google_maps_key))
+        playServicesAvailable = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS
+
+        val factory = BookingViewModelFactory(
+            FirebaseDatabase.getInstance(),
+            FirebaseAuth.getInstance(),
+            FirebaseFunctions.getInstance(),
+            FirebaseFirestore.getInstance()
+        )
+        viewModel = ViewModelProvider(this, factory)[BookingViewModel::class.java]
+
+        if (playServicesAvailable) {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        } else {
+            // Remove Places autocomplete fragments that rely on Google Play services
+            supportFragmentManager.findFragmentById(R.id.pickup_autocomplete_fragment)?.let {
+                supportFragmentManager.beginTransaction().remove(it).commit()
+            }
+            supportFragmentManager.findFragmentById(R.id.destination_autocomplete_fragment)?.let {
+                supportFragmentManager.beginTransaction().remove(it).commit()
+            }
+            // Hide current location shortcuts when Play services are unavailable
+            binding.buttonCurrentLocationPickup.visibility = View.GONE
+            binding.buttonCurrentLocationDropoff.visibility = View.GONE
+        }
+
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
+        if (playServicesAvailable) {
+            mapFragment?.getMapAsync(this)
+        } else {
+            Toast.makeText(this, "Google Play services not available; map disabled.", Toast.LENGTH_SHORT).show()
         }
 
         setupUI()
-        observeUiState()
-    }
-
-    override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
-        enableMyLocation()
-        mMap.setOnMapClickListener { latLng ->
-            val title = if (currentSelectionMode == SelectionMode.PICKUP) "Pickup Location" else "Destination"
-            addOrUpdateMarker(latLng, title, currentSelectionMode == SelectionMode.PICKUP)
-            updateAddressFromLatLng(latLng, currentSelectionMode == SelectionMode.PICKUP)
+        // Wire up the ‘OK (Show Map)’ button to dismiss the canceled overlay
+        binding.buttonShowOnMap.setOnClickListener {
+            binding.noDriversLayout.visibility = View.GONE
+            viewModel.clearBookingState()
         }
-
-        // Center map on last known location
-        fusedLocationProviderClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                val currentLatLng = LatLng(location.latitude, location.longitude)
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 15f))
-            }
-        }
-    }
-
-    private fun addOrUpdateMarker(latLng: LatLng, title: String, isPickup: Boolean) {
-        if (isPickup) {
-            pickupLocationLatLng = latLng
-            pickupMarker?.remove()
-            pickupMarker = mMap.addMarker(MarkerOptions().position(latLng).title(title))
-        } else {
-            destinationLatLng = latLng
-            destinationMarker?.remove()
-            destinationMarker = mMap.addMarker(MarkerOptions().position(latLng).title(title))
-        }
-        zoomToFitMarkers()
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun enableMyLocation() {
-        // For simplicity, permissions are assumed to be granted.
-        // In a real app, you must handle permission requests.
-        mMap.isMyLocationEnabled = true
-        mMap.uiSettings.isMyLocationButtonEnabled = true
+        setupPlaceAutocomplete()
+        observeViewModel()
     }
 
     private fun setupUI() {
         binding.buttonConfirmBooking.setOnClickListener {
             createBookingRequest()
         }
-
-        val pickupAutocompleteFragment =
-            supportFragmentManager.findFragmentById(R.id.pickup_autocomplete_fragment) as AutocompleteSupportFragment
-        pickupAutocompleteFragment.setPlaceFields(listOf(com.google.android.libraries.places.api.model.Place.Field.ID, com.google.android.libraries.places.api.model.Place.Field.NAME, com.google.android.libraries.places.api.model.Place.Field.LAT_LNG))
-        pickupAutocompleteFragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
-            override fun onPlaceSelected(place: com.google.android.libraries.places.api.model.Place) {
-                pickupLocationLatLng = place.latLng
-                pickupMarker?.remove()
-                pickupMarker = mMap.addMarker(MarkerOptions().position(place.latLng!!).title("Pickup: ${place.name}"))
-                binding.pickupLocationEditText.setText(place.name)
-                zoomToFitMarkers()
-            }
-
-            override fun onError(status: com.google.android.gms.common.api.Status) {
-                Toast.makeText(this@BookingActivity, "An error occurred: $status", Toast.LENGTH_SHORT).show()
-            }
-        })
-
-        val destinationAutocompleteFragment =
-            supportFragmentManager.findFragmentById(R.id.destination_autocomplete_fragment) as AutocompleteSupportFragment
-        destinationAutocompleteFragment.setPlaceFields(listOf(com.google.android.libraries.places.api.model.Place.Field.ID, com.google.android.libraries.places.api.model.Place.Field.NAME, com.google.android.libraries.places.api.model.Place.Field.LAT_LNG))
-        destinationAutocompleteFragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
-            override fun onPlaceSelected(place: com.google.android.libraries.places.api.model.Place) {
-                destinationLatLng = place.latLng
-                destinationMarker?.remove()
-                destinationMarker = mMap.addMarker(MarkerOptions().position(place.latLng!!).title("Destination: ${place.name}"))
-                binding.destinationEditText.setText(place.name)
-                zoomToFitMarkers()
-            }
-
-            override fun onError(status: com.google.android.gms.common.api.Status) {
-                Toast.makeText(this@BookingActivity, "An error occurred: $status", Toast.LENGTH_SHORT).show()
-            }
-        })
-
-        binding.buttonCancelRideRider.setOnClickListener { viewModel.cancelBooking() }
-        binding.buttonCancelWhileFinding.setOnClickListener { viewModel.cancelBooking() }
-
-
-        // Location selection buttons
-        binding.buttonCurrentLocationPickup.setOnClickListener { getCurrentLocationAndSet(isPickup = true) }
-        binding.buttonCurrentLocationDropoff.visibility = View.GONE
-
-
         binding.buttonSelectPickupMode.setOnClickListener {
-            currentSelectionMode = SelectionMode.PICKUP
-            Toast.makeText(this, "Tap on the map to set your pickup location", Toast.LENGTH_SHORT).show()
+            selectionMode = SelectionMode.PICKUP
+            Toast.makeText(this, "Tap on the map to set Pickup", Toast.LENGTH_SHORT).show()
         }
         binding.buttonSelectDropoffMode.setOnClickListener {
-            currentSelectionMode = SelectionMode.DROPOFF
-            Toast.makeText(this, "Tap on the map to set your drop-off location", Toast.LENGTH_SHORT).show()
+            selectionMode = SelectionMode.DROPOFF
+            Toast.makeText(this, "Tap on the map to set Drop-off", Toast.LENGTH_SHORT).show()
         }
+        binding.buttonCurrentLocationPickup.setOnClickListener {
+            setCurrentLocationAs(true)
+        }
+        binding.buttonCurrentLocationDropoff.setOnClickListener {
+            setCurrentLocationAs(false)
+        }
+        binding.backButtonBooking.setOnClickListener { finish() }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun getCurrentLocationAndSet(isPickup: Boolean) {
-        if (!mMap.isMyLocationEnabled) {
-            Toast.makeText(this, "Please enable location services.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        fusedLocationProviderClient.lastLocation.addOnSuccessListener(this) { location ->
-            if (location != null) {
-                val currentLatLng = LatLng(location.latitude, location.longitude)
-                val title = if (isPickup) "Pickup Location" else "Destination"
-                addOrUpdateMarker(currentLatLng, title, isPickup)
-                updateAddressFromLatLng(currentLatLng, isPickup)
-                zoomToFitMarkers()
-            } else {
-                Toast.makeText(this, "Could not get current location.", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
+    private fun setupPlaceAutocomplete() {
+        if (!playServicesAvailable) return
+        val pickupFragment = supportFragmentManager.findFragmentById(R.id.pickup_autocomplete_fragment) as? AutocompleteSupportFragment
+        val destinationFragment = supportFragmentManager.findFragmentById(R.id.destination_autocomplete_fragment) as? AutocompleteSupportFragment
 
-    private fun createBookingRequest() {
-        if (pickupLocationLatLng == null || destinationLatLng == null) {
-            Toast.makeText(this, "Please set pickup and destination.", Toast.LENGTH_SHORT).show()
-            return
-        }
+        val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
+        pickupFragment?.setPlaceFields(placeFields)
+        destinationFragment?.setPlaceFields(placeFields)
 
-        viewModel.createBooking(
-            pickupLatLng = pickupLocationLatLng!!,
-            destinationLatLng = destinationLatLng!!,
-            pickupAddress = binding.pickupLocationEditText.text.toString(),
-            destinationAddress = binding.destinationEditText.text.toString()
-        )
-    }
-    private fun bitmapDescriptorFromVector(context: Context, vectorResId: Int): BitmapDescriptor? {
-        return ContextCompat.getDrawable(context, vectorResId)?.run {
-            setBounds(0, 0, intrinsicWidth, intrinsicHeight)
-            val bitmap = Bitmap.createBitmap(intrinsicWidth, intrinsicHeight, Bitmap.Config.ARGB_8888)
-            draw(Canvas(bitmap))
-            BitmapDescriptorFactory.fromBitmap(bitmap)
-        }
-    }
-
-    private fun zoomToFitMarkers() {
-        val markers = listOfNotNull(pickupMarker, destinationMarker, driverMarker)
-        if (markers.isEmpty()) return
-        if (markers.size == 1) {
-            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(markers.first().position, 15f))
-            return
-        }
-
-        val builder = LatLngBounds.Builder()
-        for (marker in markers) {
-            builder.include(marker.position)
-        }
-        val bounds = builder.build()
-        val padding = 150 // offset from edges of the map in pixels
-        mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding))
-    }
-
-    private fun observeUiState() {
-        viewModel.uiState.observe(this) { state ->
-            renderState(state)
-        }
-    }
-
-    private fun renderState(state: BookingUiState) {
-        binding.infoCardView.visibility = View.GONE
-        binding.bookingStatusCardView.visibility = View.GONE
-        binding.findingDriverLayout.visibility = View.GONE
-        setBookingInputEnabled(false)
-
-        val isNewState = previousStateClass != state::class.java
-
-        when (state) {
-            is BookingUiState.Initial -> {
-                resetToInitialState()
-            }
-            is BookingUiState.FindingDriver -> {
-                showFindingDriverLayout(state.message)
-            }
-            is BookingUiState.DriverOnTheWay -> {
-                if (::mMap.isInitialized) {
-                    if (isNewState) {
-                        mMap.clear()
-                        driverMarker = null
-                        pickupMarker = mMap.addMarker(MarkerOptions().position(state.pickupLocation).title("Pickup"))
-                        destinationMarker = mMap.addMarker(MarkerOptions().position(state.dropOffLocation).title("Destination"))
-                    }
-
-                    if (state.driverLocation != null) {
-                        updateDriverMarker(state.driverLocation)
-                    }
-
-                    if (isNewState) {
-                        getDirectionsAndDrawRoute(state.pickupLocation, state.dropOffLocation)
-                    }
-                    showBookingStatusCard(
-                        header = "Driver on the way",
-                        driverName = state.driverName,
-                        vehicleDetails = state.vehicleDetails,
-                        message = state.message
-                    )
-                    zoomToFitMarkers()
-                } else {
-                    Log.e("renderState", "Map not ready for DriverOnTheWay")
+        pickupFragment?.setOnPlaceSelectedListener(object : PlaceSelectionListener {
+            override fun onPlaceSelected(place: Place) {
+                place.latLng?.let { latLng ->
+                    pickupLocationLatLng = latLng
+                    binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
+                    setPickupMarker(latLng)
+                    selectionMode = SelectionMode.NONE
                 }
-                previousStateClass = state::class.java
             }
-
-            is BookingUiState.DriverArrived -> {
-                showBookingStatusCard(
-                    header = "Driver has arrived",
-                    driverName = state.driverName,
-                    vehicleDetails = state.vehicleDetails,
-                    message = state.message
-                )
+            override fun onError(status: Status) {
+                Toast.makeText(this@BookingActivity, "Pickup selection error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
             }
-            is BookingUiState.TripInProgress -> {
-                if (::mMap.isInitialized) {
-                    if (isNewState) {
-                        mMap.clear()
-                        driverMarker = null
-                        pickupMarker = mMap.addMarker(MarkerOptions().position(state.pickupLocation).title("Pickup"))
-                        destinationMarker = mMap.addMarker(MarkerOptions().position(state.dropOffLocation).title("Destination"))
-                    }
+        })
 
-                    if (state.driverLocation != null) {
-                        updateDriverMarker(state.driverLocation)
-                    }
-                    if (isNewState) {
-                        getDirectionsAndDrawRoute(state.pickupLocation, state.dropOffLocation)
-                    }
-                    showBookingStatusCard(
-                        header = "Trip in progress",
-                        driverName = state.driverName,
-                        vehicleDetails = state.vehicleDetails,
-                        message = state.message
-                    )
-                    zoomToFitMarkers()
-                } else {
-                    Log.e("renderState", "Map not ready for TripInProgress")
+        destinationFragment?.setOnPlaceSelectedListener(object : PlaceSelectionListener {
+            override fun onPlaceSelected(place: Place) {
+                place.latLng?.let { latLng ->
+                    destinationLatLng = latLng
+                    binding.destinationEditText.setText(place.address ?: place.name ?: "")
+                    setDestinationMarker(latLng)
+                    selectionMode = SelectionMode.NONE
                 }
-                previousStateClass = state::class.java
             }
-            is BookingUiState.TripCompleted -> {
-                // Show a confirmation message
-                Toast.makeText(this, "Trip Completed! Thank you for riding with us.", Toast.LENGTH_LONG).show()
-
-                // Navigate back to the home screen after a short delay
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    val intent = Intent(this, HomeActivity::class.java)
-                    intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-                    startActivity(intent)
-                    finish()
-                }, 3000) // 3-second delay
-
-                // Hide unnecessary buttons
-                binding.buttonCancelRideRider.visibility = View.GONE
+            override fun onError(status: Status) {
+                Toast.makeText(this@BookingActivity, "Drop-off selection error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
             }
-            is BookingUiState.Canceled -> {
-                showBookingStatusCard(
-                    header = "Booking Canceled",
-                    driverName = "",
-                    vehicleDetails = "",
-                    message = state.message
-                )
-                binding.buttonCancelRideRider.visibility = View.GONE
-            }
-            is BookingUiState.Error -> {
-                Toast.makeText(this, "Error: ${state.message}", Toast.LENGTH_LONG).show()
-                resetToInitialState()
-            }
-        }
+        })
     }
 
-
-    private fun updateDriverMarker(driverLocation: LatLng) {
-        val carIcon = bitmapDescriptorFromVector(this, R.drawable.ic_car_marker)
-        if (driverMarker == null) {
-            driverMarker = mMap.addMarker(
-                MarkerOptions().position(driverLocation).title("Driver").icon(carIcon).anchor(0.5f, 0.5f)
+    private fun setCurrentLocationAs(isPickup: Boolean) {
+        if (!playServicesAvailable) return
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
             )
-        } else {
-            driverMarker?.position = driverLocation
+            return
         }
-    }
-
-    private fun setBookingInputEnabled(enabled: Boolean) {
-        binding.infoCardView.visibility = if (enabled) View.VISIBLE else View.GONE
-    }
-
-
-    private fun resetToInitialState() {
-        mMap.clear()
-        driverMarker = null
-        pickupMarker = null
-        destinationMarker = null
-        routePolyline = null
-        binding.pickupLocationEditText.text.clear()
-        binding.destinationEditText.text.clear()
-        setBookingInputEnabled(true)
-        binding.bookingStatusCardView.visibility = View.GONE
-        binding.findingDriverLayout.visibility = View.GONE
-        binding.buttonCancelRideRider.visibility = View.GONE
-        binding.buttonCancelWhileFinding.visibility = View.GONE
-    }
-
-
-    private fun showFindingDriverLayout(message: String) {
-        binding.findingDriverLayout.visibility = View.VISIBLE
-        binding.textViewFindingDriver.text = message
-        binding.buttonCancelWhileFinding.visibility = View.VISIBLE
-    }
-
-    private fun showBookingStatusCard(header: String, driverName: String, vehicleDetails: String, message: String) {
-        binding.bookingStatusCardView.visibility = View.VISIBLE
-        binding.textViewBookingStatusHeader.text = header
-        binding.textViewDriverNameStatus.text = "Driver: $driverName"
-        binding.textViewVehicleDetailsStatus.text = "Vehicle: $vehicleDetails"
-        binding.textViewTripStatusMessage.text = message
-
-        val showCancelButton = header == "Driver on the way" || header == "Driver has arrived"
-        binding.buttonCancelRideRider.visibility = if(showCancelButton) View.VISIBLE else View.GONE
-    }
-
-    private fun updateAddressFromLatLng(latLng: LatLng, isPickup: Boolean) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
-                if (addresses != null && addresses.isNotEmpty()) {
-                    val address = addresses[0]
-                    val addressText = address.getAddressLine(0)
-                    withContext(Dispatchers.Main) {
-                        if (isPickup) {
-                            binding.pickupLocationEditText.setText(addressText)
-                        } else {
-                            binding.destinationEditText.setText(addressText)
-                        }
-                    }
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val latLng = LatLng(location.latitude, location.longitude)
+                val address = getAddressFromLatLng(latLng)
+                if (isPickup) {
+                    pickupLocationLatLng = latLng
+                    binding.pickupLocationEditText.setText(address)
+                    setPickupMarker(latLng)
+                } else {
+                    destinationLatLng = latLng
+                    binding.destinationEditText.setText(address)
+                    setDestinationMarker(latLng)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to get address from LatLng", e)
             }
         }
     }
 
+    private fun getAddressFromLatLng(latLng: LatLng): String {
+        return try {
+            val geocoder = Geocoder(this, Locale.getDefault())
+            val results = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
+            if (!results.isNullOrEmpty()) {
+                results[0].getAddressLine(0) ?: "${latLng.latitude}, ${latLng.longitude}"
+            } else {
+                "${latLng.latitude}, ${latLng.longitude}"
+            }
+        } catch (e: Exception) {
+            "${latLng.latitude}, ${latLng.longitude}"
+        }
+    }
 
-    private fun getDirectionsAndDrawRoute(start: LatLng, end: LatLng) {
+    private fun setPickupMarker(latLng: LatLng) {
+        pickupMarker?.remove()
+        pickupMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Pickup"))
+        mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+    }
+
+    private fun setDestinationMarker(latLng: LatLng) {
+        destinationMarker?.remove()
+        destinationMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Drop-off"))
+        mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+    }
+
+    override fun onMapReady(googleMap: GoogleMap) {
+        mMap = googleMap
+        mMap?.setOnMapClickListener { latLng -> onMapTapped(latLng) }
+        if (playServicesAvailable) {
+            enableMyLocationIfPermitted()
+        }
+    }
+
+    private fun enableMyLocationIfPermitted() {
+        if (!playServicesAvailable) return
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) {
+            mMap?.isMyLocationEnabled = true
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    val latLng = LatLng(it.latitude, it.longitude)
+                    mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                }
+            }
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        }
+    }
+
+    private fun onMapTapped(latLng: LatLng) {
+        when (selectionMode) {
+            SelectionMode.PICKUP -> {
+                pickupLocationLatLng = latLng
+                setPickupMarker(latLng)
+                val address = getAddressFromLatLng(latLng)
+                binding.pickupLocationEditText.setText(address)
+                selectionMode = SelectionMode.NONE
+            }
+            SelectionMode.DROPOFF -> {
+                destinationLatLng = latLng
+                setDestinationMarker(latLng)
+                val address = getAddressFromLatLng(latLng)
+                binding.destinationEditText.setText(address)
+                selectionMode = SelectionMode.NONE
+            }
+            else -> {
+                // No-op
+            }
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.uiState.observe(this) { state ->
+            when (state) {
+                is BookingUiState.Initial -> {
+                    binding.infoCardView.visibility = View.VISIBLE
+                    binding.bookingStatusCardView.visibility = View.GONE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.GONE
+                    clearDriverMarker()
+                    clearRoute()
+                }
+                is BookingUiState.FindingDriver -> {
+                    binding.infoCardView.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.VISIBLE
+                    binding.findingDriverLayout.visibility = View.VISIBLE
+                    binding.noDriversLayout.visibility = View.GONE
+                    binding.textViewBookingStatusHeader.text = "Finding driver"
+                    binding.textViewTripStatusMessage.text = state.message
+                    binding.textViewDriverNameStatus.text = "Loading..."
+                    binding.textViewVehicleDetailsStatus.text = ""
+                    binding.textViewDriverPhoneStatus.text = ""
+                }
+                is BookingUiState.DriverOnTheWay -> {
+                    binding.infoCardView.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.VISIBLE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.GONE
+                    binding.textViewBookingStatusHeader.text = "Driver on the way"
+                    binding.textViewTripStatusMessage.text = state.message
+
+                    pickupLocationLatLng = state.pickupLocation
+                    destinationLatLng = state.dropOffLocation
+                    setPickupMarker(state.pickupLocation)
+                    setDestinationMarker(state.dropOffLocation)
+
+                    binding.textViewDriverNameStatus.text = state.driverName
+                    binding.textViewVehicleDetailsStatus.text = state.vehicleDetails
+                    binding.textViewDriverPhoneStatus.text = state.driverPhone ?: "Unavailable"
+                    updateDriverRatingSummary(state.driverId)
+
+                    state.driverLocation?.let { loc ->
+                        updateDriverMarker(loc)
+                        getDirectionsAndDrawRoute(loc, state.pickupLocation)
+                    }
+                }
+                is BookingUiState.DriverArrived -> {
+                    binding.infoCardView.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.VISIBLE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.GONE
+                    binding.textViewBookingStatusHeader.text = "Driver arrived"
+                    binding.textViewTripStatusMessage.text = state.message
+
+                    pickupLocationLatLng = state.pickupLocation
+                    destinationLatLng = state.dropOffLocation
+                    setPickupMarker(state.pickupLocation)
+                    setDestinationMarker(state.dropOffLocation)
+                }
+                is BookingUiState.TripInProgress -> {
+                    binding.infoCardView.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.VISIBLE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.GONE
+                    binding.textViewBookingStatusHeader.text = "Trip in progress"
+                    binding.textViewTripStatusMessage.text = state.message
+
+                    pickupLocationLatLng = state.pickupLocation
+                    destinationLatLng = state.dropOffLocation
+                    setPickupMarker(state.pickupLocation)
+                    setDestinationMarker(state.dropOffLocation)
+
+                    binding.textViewDriverNameStatus.text = state.driverName
+                    binding.textViewVehicleDetailsStatus.text = state.vehicleDetails
+                    binding.textViewDriverPhoneStatus.text = state.driverPhone ?: "Unavailable"
+                    updateDriverRatingSummary(state.driverId)
+
+                    state.driverLocation?.let { loc ->
+                        updateDriverMarker(loc)
+                        getDirectionsAndDrawRoute(loc, state.dropOffLocation)
+                    }
+                }
+                is BookingUiState.TripCompleted -> {
+                    binding.infoCardView.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.VISIBLE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.GONE
+                    binding.textViewBookingStatusHeader.text = "Trip completed"
+                    binding.textViewTripStatusMessage.text = "Please rate your driver"
+                    clearDriverMarker()
+                    clearRoute()
+                    showRiderRatingDialog(state.bookingId, state.driverId)
+                }
+                is BookingUiState.Canceled -> {
+                    binding.infoCardView.visibility = View.VISIBLE
+                    binding.bookingStatusCardView.visibility = View.GONE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.VISIBLE
+                    binding.textViewNoDriversMessage.text = state.message
+                    clearDriverMarker()
+                    clearRoute()
+                }
+                is BookingUiState.Error -> {
+                    Toast.makeText(this, state.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
+        val apiKey = getString(R.string.google_maps_key)
+        val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=$apiKey"
+
         lifecycleScope.launch(Dispatchers.IO) {
-            val apiKey = getString(R.string.google_maps_key)
-            val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&key=$apiKey"
             try {
                 val result = URL(url).readText()
-                val json = JSONObject(result)
-                val routes = json.getJSONArray("routes")
+                val jsonObject = JSONObject(result)
+                val routes = jsonObject.getJSONArray("routes")
                 if (routes.length() > 0) {
-                    val route = routes.getJSONObject(0)
-                    val overviewPolyline = route.getJSONObject("overview_polyline")
-                    val points = overviewPolyline.getString("points")
-                    val decodedPath = decodePolyline(points)
+                    val points = routes.getJSONObject(0).getJSONObject("overview_polyline").getString("points")
+                    val polylineOptions = PolylineOptions()
+                        .addAll(decodePoly(points))
+                        .color(Color.BLUE)
+                        .width(12f)
 
                     withContext(Dispatchers.Main) {
-                        routePolyline?.remove()
-                        routePolyline = mMap.addPolyline(PolylineOptions().addAll(decodedPath).color(Color.BLUE).width(12f))
+                        currentPolyline?.remove()
+                        currentPolyline = mMap?.addPolyline(polylineOptions)
+
+                        // Adjust camera to fit the route
+                        val boundsBuilder = LatLngBounds.Builder()
+                        boundsBuilder.include(origin)
+                        boundsBuilder.include(destination)
+                        mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 150))
                     }
                 }
             } catch (e: Exception) {
-                Log.e("getDirections", "Error fetching directions", e)
+                Log.e(TAG, "Error fetching directions", e)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@BookingActivity, "Could not get directions.", Toast.LENGTH_SHORT).show()
                 }
@@ -463,12 +442,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    private fun decodePolyline(encoded: String): List<LatLng> {
+    private fun decodePoly(encoded: String): List<LatLng> {
         val poly = ArrayList<LatLng>()
         var index = 0
         val len = encoded.length
         var lat = 0
         var lng = 0
+
         while (index < len) {
             var b: Int
             var shift = 0
@@ -480,6 +460,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             } while (b >= 0x20)
             val dlat = if (result and 1 != 0) (result shr 1).inv() else result shr 1
             lat += dlat
+
             shift = 0
             result = 0
             do {
@@ -489,9 +470,209 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             } while (b >= 0x20)
             val dlng = if (result and 1 != 0) (result shr 1).inv() else result shr 1
             lng += dlng
+
             val p = LatLng(lat.toDouble() / 1E5, lng.toDouble() / 1E5)
             poly.add(p)
         }
         return poly
     }
+
+    private fun updateMarkers() {
+        // Preserve existing markers and route; only update pickup/destination markers
+        pickupLocationLatLng?.let { setPickupMarker(it) }
+        destinationLatLng?.let { setDestinationMarker(it) }
+    }
+
+    private fun updateDriverMarker(latLng: LatLng) {
+        val icon = bitmapDescriptorFromVector(R.drawable.ic_car_marker)
+        if (driverMarker == null) {
+            driverMarker = mMap?.addMarker(
+                MarkerOptions()
+                    .position(latLng)
+                    .title("Driver")
+                    .icon(icon)
+            )
+        } else {
+            driverMarker?.position = latLng
+        }
+    }
+
+    private fun clearDriverMarker() {
+        driverMarker?.remove()
+        driverMarker = null
+    }
+
+    private fun bitmapDescriptorFromVector(drawableId: Int): BitmapDescriptor {
+        val drawable = ContextCompat.getDrawable(this, drawableId) ?: return BitmapDescriptorFactory.defaultMarker()
+        val targetSizePx = (48 * resources.displayMetrics.density).toInt().coerceAtLeast(32)
+        val bitmap = Bitmap.createBitmap(targetSizePx, targetSizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return BitmapDescriptorFactory.fromBitmap(bitmap)
+    }
+
+    private fun clearRoute() {
+        currentPolyline?.remove()
+        currentPolyline = null
+    }
+
+    private fun hideBookingStatusCard() {
+        binding.bookingStatusCardView.visibility = View.GONE
+        binding.infoCardView.visibility = View.VISIBLE
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                enableMyLocationIfPermitted()
+            } else {
+                Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    private fun createBookingRequest() {
+        val pickup = pickupLocationLatLng
+        val dropoff = destinationLatLng
+        if (pickup == null || dropoff == null) {
+            Toast.makeText(this, "Please set pickup and destination.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val pickupAddress = binding.pickupLocationEditText.text?.toString() ?: ""
+        val destinationAddress = binding.destinationEditText.text?.toString() ?: ""
+        viewModel.createBooking(
+            pickupLatLng = pickup,
+            destinationLatLng = dropoff,
+            pickupAddress = pickupAddress,
+            destinationAddress = destinationAddress
+        )
+    }
+
+    private fun showRiderRatingDialog(bookingId: String, driverId: String) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
+        val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
+        val etComments = dialogView.findViewById<EditText>(R.id.editTextComments)
+        val btnSubmit = dialogView.findViewById<Button>(R.id.buttonSubmitRating)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Rate Your Driver")
+            .setView(dialogView)
+            .create()
+
+        btnSubmit.setOnClickListener {
+            val rating = ratingBar.rating
+            val comments = etComments.text.toString()
+            if (rating > 0f) {
+                submitRating(bookingId, driverId, rating, comments)
+                dialog.dismiss()
+            } else {
+                Toast.makeText(this, "Please provide a rating.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun submitRating(bookingId: String, driverId: String, rating: Float, comments: String) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val ratingData = com.btsi.swiftcab.models.Rating(
+            bookingId = bookingId,
+            raterId = uid,
+            ratedId = driverId,
+            rating = rating,
+            comments = comments,
+            timestamp = System.currentTimeMillis()
+        )
+
+        firestore.collection("ratings").add(ratingData)
+            .addOnSuccessListener {
+                firestore.collection("bookinghistory").document(bookingId)
+                    .update("riderRated", true)
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Failed to mark trip as rated: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                Toast.makeText(this, "Rating submitted successfully!", Toast.LENGTH_SHORT).show()
+                finish() // Exit booking screen and map after rating submission
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to submit rating: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+private fun updateDriverRatingSummary(driverId: String?) {
+    // Wire reviews button for passengers
+    binding.buttonViewAllDriverReviews.isEnabled = !driverId.isNullOrBlank()
+    binding.buttonViewAllDriverReviews.setOnClickListener {
+        if (!driverId.isNullOrBlank()) {
+            val intent = Intent(this, DriverRatingsActivity::class.java)
+            intent.putExtra("TARGET_USER_ID", driverId)
+            startActivity(intent)
+        }
+    }
+
+    // Load driver profile image
+    loadDriverProfileImage(driverId)
+
+    if (driverId.isNullOrBlank()) {
+        binding.driverRatingSummary.visibility = View.GONE
+        return
+    }
+    binding.driverRatingSummary.visibility = View.VISIBLE
+
+    firestore.collection("public").document("driver_rating_summaries_" + driverId)
+        .get()
+        .addOnSuccessListener { doc ->
+            if (!doc.exists()) {
+                binding.driverAverageRatingBar.rating = 0f
+                binding.textViewDriverRatingCount.text = "0.0 stars (0 total reviews)"
+                return@addOnSuccessListener
+            }
+            val avg = doc.getDouble("average") ?: 0.0
+            val count = doc.getLong("count")?.toInt() ?: 0
+            binding.driverAverageRatingBar.rating = avg.toFloat()
+            val summaryText = String.format(java.util.Locale.getDefault(), "%.1f stars (%d total reviews)", avg, count)
+            binding.textViewDriverRatingCount.text = summaryText
+        }
+        .addOnFailureListener { e ->
+            binding.driverRatingSummary.visibility = View.GONE
+            Log.e(TAG, "Failed to load driver rating summary (public)", e)
+        }
+}
+
+private fun loadDriverProfileImage(driverId: String?) {
+    if (driverId.isNullOrBlank()) {
+        return
+    }
+    firestore.collection("users").document(driverId).get()
+        .addOnSuccessListener { doc ->
+            val url = doc.getString("profileImageUrl")
+            if (!url.isNullOrBlank()) {
+                Glide.with(this)
+                    .load(url)
+                    .placeholder(R.drawable.ic_driver_profile)
+                    .circleCrop()
+                    .into(binding.imageViewDriverProfile)
+            } else {
+                firestore.collection("drivers").document(driverId).get()
+                    .addOnSuccessListener { d2 ->
+                        val url2 = d2.getString("profileImageUrl")
+                        if (!url2.isNullOrBlank()) {
+                            Glide.with(this)
+                                .load(url2)
+                                .placeholder(R.drawable.ic_driver_profile)
+                                .circleCrop()
+                                .into(binding.imageViewDriverProfile)
+                        }
+                    }
+            }
+        }
+        .addOnFailureListener {
+            // ignore; keep placeholder
+        }
+}
 }
