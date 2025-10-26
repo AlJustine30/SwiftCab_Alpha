@@ -74,4 +74,14 @@
     <string name="history_status">Status: %1$s</string>
     <string name="title_activity_driver_booking_history">Driver Booking History</string> <!-- For AndroidManifest label -->
 
+    <!-- New strings for fare summary and driver confirmation -->
+    <string name="fare_label">Fare: ₱%1$.2f</string>
+    <string name="duration_label">Duration: %1$d min</string>
+    <string name="fare_breakdown_label">Breakdown: Base ₱%1$.2f + %2$.2f km × ₱%3$.2f + %4$d min × ₱%5$.2f = ₱%6$.2f</string>
+    <string name="awaiting_payment_header">Awaiting Payment</string>
+     <string name="awaiting_payment_message">Awaiting payment confirmation
+  Your driver is confirming the fare.</string>
+      <string name="payment_confirmed">Payment Confirmed</string>
+       <string name="payment_confirmed_message">Payment confirmed. Trip completed.</string>
+
 </resources>

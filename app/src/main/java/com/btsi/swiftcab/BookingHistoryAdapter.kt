@@ -38,6 +38,7 @@ class BookingHistoryAdapter(
         private val textViewDestination: TextView = itemView.findViewById(R.id.textViewHistoryDestination)
         private val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
         private val ratingBarHistory: RatingBar = itemView.findViewById(R.id.ratingBarHistory)
+        private val textViewPrice: TextView = itemView.findViewById(R.id.textViewHistoryPrice)
         private val btnRate: Button = itemView.findViewById(R.id.btnRate)
 
         fun bind(booking: BookingRequest, userType: String, onRateClick: (BookingRequest) -> Unit) {
@@ -58,6 +59,15 @@ class BookingHistoryAdapter(
             textViewPickup.text = context.getString(R.string.history_pickup, booking.pickupAddress)
             textViewDestination.text = context.getString(R.string.history_destination, booking.destinationAddress)
             textViewStatus.text = context.getString(R.string.history_status, booking.status)
+
+            // Show final paid fare if available
+            val amount = booking.finalFare ?: booking.estimatedFare
+            if (amount != null) {
+                textViewPrice.visibility = View.VISIBLE
+                textViewPrice.text = context.getString(R.string.fare_label, amount)
+            } else {
+                textViewPrice.visibility = View.GONE
+            }
 
             val rating = booking.riderRating
             if (rating != null && rating > 0f) {

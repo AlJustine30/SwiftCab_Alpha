@@ -24,6 +24,18 @@ data class BookingRequest(
     val driverLocation: HashMap<String, Double>? = null,
     var riderRated: Boolean = false,
     var driverRated: Boolean = false,
-    var riderRating: Float? = null
+    var riderRating: Float? = null,
+    // Fare-related fields
+    var estimatedFare: Double? = null,
+    var finalFare: Double? = null,
+    var distanceKm: Double? = null,
+    var fareBase: Double? = null,
+    var perKmRate: Double? = null,
+    var perMinuteRate: Double? = null,
+    var tripStartedAt: Long? = null,
+    var tripEndedAt: Long? = null,
+    var durationMinutes: Int? = null,
+    var paymentConfirmed: Boolean? = null
 )
-
+
+

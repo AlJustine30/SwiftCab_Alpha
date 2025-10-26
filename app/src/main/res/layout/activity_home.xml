@@ -5,7 +5,6 @@
     android:id="@+id/drawer_layout_home"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true"
     tools:openDrawer="start">
 
     <!-- Main content -->
@@ -14,16 +13,17 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <androidx.appcompat.widget.Toolbar
+        <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar_home"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
-            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-            app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+            android:theme="@style/ThemeOverlay.Material3.Dark.ActionBar"
+            app:popupTheme="@style/ThemeOverlay.Material3.Light" />
 
         <!-- Your existing content goes here -->
         <LinearLayout
+            android:id="@+id/home_content_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
@@ -65,6 +65,16 @@
                 android:text="Book now"
                 android:textAllCaps="false"
                 android:textSize="18sp" />
+
+            <Button
+                android:id="@+id/ReturnToBookingButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Return to ongoing booking"
+                android:textAllCaps="false"
+                android:textSize="18sp"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"/>
         </LinearLayout>
 
     </LinearLayout>

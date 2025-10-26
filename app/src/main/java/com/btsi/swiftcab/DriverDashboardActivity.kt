@@ -50,6 +50,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private var mMap: GoogleMap? = null
     private var currentBooking: BookingRequest? = null
     private var currentPolyline: Polyline? = null
+    private var driverTripTimerHandler: android.os.Handler? = null
+    private var driverTripTimerRunnable: Runnable? = null
+    private val PER_KM_RATE = 13.5
 
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -59,6 +62,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private var driverRef: DatabaseReference? = null
     private var offersListenerReference: DatabaseReference? = null
     private var offersValueListener: ValueEventListener? = null
+    // NEW: Offers list and adapter
+    private var offersAdapter: DriverOffersAdapter? = null
+    private val offersList: MutableList<BookingRequest> = mutableListOf()
+    private var currentDriverLatLng: LatLng? = null
     private var activeBookingListener: ValueEventListener? = null
     private var activeBookingRef: DatabaseReference? = null
     private var playServicesAvailable: Boolean = false
@@ -162,33 +169,40 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
         binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
-    }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (toggle.onOptionsItemSelected(item)) {
-            return true
+        // NEW: Setup offers RecyclerView
+        binding.recyclerViewDriverOffers.apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@DriverDashboardActivity)
         }
-        return super.onOptionsItemSelected(item)
-    }
-
-    private fun goOnline() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            binding.switchDriverStatus.isChecked = false
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), LOCATION_PERMISSION_REQUEST_CODE)
-            return
-        }
-        if (!playServicesAvailable) {
-            Toast.makeText(this, "Google Play services not available; cannot go online.", Toast.LENGTH_SHORT).show()
-            binding.switchDriverStatus.isChecked = false
-            return
-        }
-        binding.switchDriverStatus.text = getString(R.string.status_online)
-        driverRef?.onDisconnect()?.removeValue()
-        // Ensure driver metadata is present for acceptBooking
-        backfillDriverProfileToRealtime()
-        startLocationUpdates()
-        attachDriverOffersListener()
-        Toast.makeText(this, "You are now online", Toast.LENGTH_SHORT).show()
+        offersAdapter = DriverOffersAdapter(
+            offersList,
+            currentDriverLatLng,
+            onAccept = { offer ->
+                acceptBooking(offer.bookingId)
+                // Remove from local list to reflect decision
+                offer.bookingId?.let { id ->
+                    val idx = offersList.indexOfFirst { it.bookingId == id }
+                    if (idx >= 0) {
+                        offersList.removeAt(idx)
+                        offersAdapter?.notifyItemRemoved(idx)
+                    }
+                }
+            },
+            onDecline = { offer ->
+                val driverId = auth.currentUser?.uid
+                val bookingId = offer.bookingId
+                if (driverId != null && bookingId != null) {
+                    db.getReference("driverOffers").child(driverId).child(bookingId).removeValue()
+                }
+                // Update local list
+                val idx = offersList.indexOfFirst { it.bookingId == bookingId }
+                if (idx >= 0) {
+                    offersList.removeAt(idx)
+                    offersAdapter?.notifyItemRemoved(idx)
+                }
+            }
+        )
+        binding.recyclerViewDriverOffers.adapter = offersAdapter
     }
 
     private fun startLocationUpdates() {
@@ -210,7 +224,11 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                     // Preserve metadata like displayName and vehicleDetails
                     driverRef?.updateChildren(driverData)
 
-                    // NEW: If there is an active booking, update its driverLocation
+                    // Update local driver location for offer distance
+                    currentDriverLatLng = LatLng(location.latitude, location.longitude)
+                    offersAdapter?.updateDriverLocation(currentDriverLatLng)
+
+                    // If there is an active booking, update its driverLocation
                     currentBooking?.bookingId?.let { bookingId ->
                         if (currentBooking?.status == "EN_ROUTE_TO_PICKUP" || currentBooking?.status == "ARRIVED_AT_PICKUP" || currentBooking?.status == "EN_ROUTE_TO_DROPOFF") {
                             db.getReference("bookingRequests").child(bookingId).child("driverLocation")
@@ -291,13 +309,17 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
         offersValueListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                if (snapshot.childrenCount > 0) {
-                    val firstOfferSnapshot = snapshot.children.first()
-                    val bookingRequest = firstOfferSnapshot.getValue(BookingRequest::class.java)
-                    if (bookingRequest != null && !isFinishing) {
-                        showBookingOfferDialog(bookingRequest)
-                        detachDriverOffersListener()
-                    }
+                val newOffers = mutableListOf<BookingRequest>()
+                snapshot.children.forEach { child ->
+                    val offer = child.getValue(BookingRequest::class.java)
+                    if (offer != null) newOffers.add(offer)
+                }
+                if (newOffers.isNotEmpty()) {
+                    binding.bookingRequestLayout.visibility = View.GONE
+                    binding.recyclerViewDriverOffers.visibility = View.VISIBLE
+                    offersAdapter?.setOffers(newOffers)
+                } else {
+                    binding.recyclerViewDriverOffers.visibility = View.GONE
                 }
             }
             override fun onCancelled(error: DatabaseError) {
@@ -436,45 +458,109 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         // Update action button based on status
         when (booking.status) {
             "ACCEPTED" -> {
+                stopDriverTripTimer()
                 binding.tripActionButton.text = "Start Trip"
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.textViewDriverFinalFare.visibility = View.GONE
+                binding.buttonPaymentConfirmed.visibility = View.GONE
             }
             "EN_ROUTE_TO_PICKUP" -> {
+                stopDriverTripTimer()
                 binding.tripActionButton.text = "Arrived at Pickup"
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.textViewDriverFinalFare.visibility = View.GONE
+                binding.buttonPaymentConfirmed.visibility = View.GONE
             }
             "ARRIVED_AT_PICKUP" -> {
+                stopDriverTripTimer()
                 binding.tripActionButton.text = "Start Dropoff"
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.textViewDriverFinalFare.visibility = View.GONE
+                binding.buttonPaymentConfirmed.visibility = View.GONE
             }
             "EN_ROUTE_TO_DROPOFF" -> {
+                val startMs = booking.tripStartedAt ?: System.currentTimeMillis()
+                val perMin = booking.perMinuteRate ?: 2.0
+                val base = booking.fareBase ?: 0.0
+                val pickupLatLng = LatLng(booking.pickupLatitude ?: 0.0, booking.pickupLongitude ?: 0.0)
+                val dropoffLatLng = LatLng(booking.destinationLatitude ?: 0.0, booking.destinationLongitude ?: 0.0)
+                val distanceKm = calculateDistanceKm(pickupLatLng, dropoffLatLng)
+                startDriverTripTimer(startMs, perMin, base, PER_KM_RATE, distanceKm)
+
                 binding.tripActionButton.text = "Complete Trip"
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.textViewDriverFinalFare.visibility = View.VISIBLE
+                binding.buttonPaymentConfirmed.visibility = View.GONE
+            }
+            "AWAITING_PAYMENT" -> {
+                stopDriverTripTimer()
+                binding.tripActionButton.visibility = View.GONE
+                val fare = booking.finalFare ?: booking.estimatedFare ?: 0.0
+                binding.textViewDriverFinalFare.visibility = View.VISIBLE
+                binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", fare)
+
+                binding.buttonPaymentConfirmed.visibility = View.VISIBLE
+                binding.buttonPaymentConfirmed.isEnabled = true
+                binding.buttonPaymentConfirmed.text = getString(R.string.payment_confirmed)
+                binding.buttonPaymentConfirmed.setOnClickListener {
+                    val bId = booking.bookingId
+                    if (!bId.isNullOrBlank()) {
+                        binding.buttonPaymentConfirmed.isEnabled = false
+                        // Call server to complete the trip; server will set paymentConfirmed
+                        functions.getHttpsCallable("updateTripStatus")
+                            .call(mapOf("bookingId" to bId, "newStatus" to "COMPLETED", "driverId" to auth.currentUser?.uid))
+                            .addOnSuccessListener {
+                                binding.buttonPaymentConfirmed.visibility = View.GONE
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Failed to set COMPLETED status", e)
+                                // Fallback: directly set status to COMPLETED in Realtime DB
+                                val bookingRef = db.getReference("bookingRequests").child(bId)
+                                bookingRef.child("status").setValue("COMPLETED")
+                                    .addOnSuccessListener {
+                                        binding.buttonPaymentConfirmed.visibility = View.GONE
+                                    }
+                                    .addOnFailureListener { err ->
+                                        Log.e(TAG, "Fallback COMPLETED update failed", err)
+                                        binding.buttonPaymentConfirmed.isEnabled = true
+                                    }
+                            }
+                    }
+                }
             }
             "COMPLETED" -> {
+                stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
-                detachActiveBookingListener()
-                currentBooking = null
-                showDefaultView()
+                val fare = booking.finalFare ?: booking.estimatedFare ?: 0.0
+                binding.textViewDriverFinalFare.visibility = View.VISIBLE
+                binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", fare)
+                binding.buttonPaymentConfirmed.visibility = View.GONE
             }
             "CANCELED" -> {
+                stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
                 detachActiveBookingListener()
                 currentBooking = null
                 showDefaultView()
             }
             else -> {
+                stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
                 binding.tripActionButton.isEnabled = false
+                binding.textViewDriverFinalFare.visibility = View.GONE
+                binding.buttonPaymentConfirmed.visibility = View.GONE
             }
+
+
+
         }
     }
 
@@ -486,7 +572,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             "ACCEPTED" -> "EN_ROUTE_TO_PICKUP"
             "EN_ROUTE_TO_PICKUP" -> "ARRIVED_AT_PICKUP"
             "ARRIVED_AT_PICKUP" -> "EN_ROUTE_TO_DROPOFF"
-            "EN_ROUTE_TO_DROPOFF" -> "COMPLETED"
+            "EN_ROUTE_TO_DROPOFF" -> "AWAITING_PAYMENT"
             else -> null
         }
 
@@ -501,6 +587,34 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             .call(mapOf("bookingId" to bookingId, "newStatus" to newStatus, "driverId" to auth.currentUser?.uid))
             .addOnSuccessListener {
                 Log.d(TAG, "Trip status updated to $newStatus")
+
+                if (newStatus == "EN_ROUTE_TO_DROPOFF") {
+                    db.getReference("bookingRequests").child(bookingId).child("tripStartedAt")
+                        .setValue(com.google.firebase.database.ServerValue.TIMESTAMP)
+                    db.getReference("bookingRequests").child(bookingId).child("perMinuteRate").setValue(2.0)
+                }
+
+                if (newStatus == "AWAITING_PAYMENT") {
+                    val b = currentBooking
+                    if (b != null) {
+                        val startMs = b.tripStartedAt ?: System.currentTimeMillis()
+                        val durationMinutes = ((System.currentTimeMillis() - startMs) / 60000).toInt()
+                        val perMin = b.perMinuteRate ?: 2.0
+                        val base = b.fareBase ?: 50.0
+                        val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
+                        val drop = LatLng(b.destinationLatitude ?: 0.0, b.destinationLongitude ?: 0.0)
+                        val distanceKm = calculateDistanceKm(pickup, drop)
+                        val kmFee = distanceKm * PER_KM_RATE
+                        val timeFee = durationMinutes * perMin
+                        val finalFare = base + kmFee + timeFee
+                        val updates: Map<String, Any> = mapOf(
+                            "durationMinutes" to durationMinutes,
+                            "finalFare" to finalFare
+                        )
+                        db.getReference("bookingRequests").child(bookingId).updateChildren(updates)
+                    }
+                }
+
                 // The listener will handle UI changes. Now, draw route if needed.
                 if (newStatus == "EN_ROUTE_TO_PICKUP" || newStatus == "EN_ROUTE_TO_DROPOFF") {
                     if (!playServicesAvailable || ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return@addOnSuccessListener
@@ -518,9 +632,43 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
                 binding.tripActionButton.isEnabled = true
             }
-            .addOnFailureListener {
-                Log.e(TAG, "Failed to update trip status", it)
-                binding.tripActionButton.isEnabled = true
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to update trip status", e)
+                // Fallback: try to update status directly in Realtime DB
+                val bookingRef = db.getReference("bookingRequests").child(bookingId)
+                bookingRef.child("status").setValue(newStatus)
+                    .addOnSuccessListener {
+                        Log.d(TAG, "Status set directly to $newStatus")
+                        if (newStatus == "EN_ROUTE_TO_DROPOFF") {
+                            bookingRef.child("tripStartedAt").setValue(com.google.firebase.database.ServerValue.TIMESTAMP)
+                            bookingRef.child("perMinuteRate").setValue(2.0)
+                        }
+                        if (newStatus == "AWAITING_PAYMENT") {
+                            val b = currentBooking
+                            if (b != null) {
+                                val startMs = b.tripStartedAt ?: System.currentTimeMillis()
+                                val durationMinutes = ((System.currentTimeMillis() - startMs) / 60000).toInt()
+                                val perMin = b.perMinuteRate ?: 2.0
+                                val base = b.fareBase ?: 50.0
+                                val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
+                                val drop = LatLng(b.destinationLatitude ?: 0.0, b.destinationLongitude ?: 0.0)
+                                val distanceKm = calculateDistanceKm(pickup, drop)
+                                val kmFee = distanceKm * PER_KM_RATE
+                                val timeFee = durationMinutes * perMin
+                                val finalFare = base + kmFee + timeFee
+                                val updates: Map<String, Any> = mapOf(
+                                    "durationMinutes" to durationMinutes,
+                                    "finalFare" to finalFare
+                                )
+                                bookingRef.updateChildren(updates)
+                            }
+                        }
+                        binding.tripActionButton.isEnabled = true
+                    }
+                    .addOnFailureListener { err ->
+                        Log.e(TAG, "Fallback status update failed", err)
+                        binding.tripActionButton.isEnabled = true
+                    }
             }
     }
 
@@ -555,15 +703,36 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onResume() {
         super.onResume()
         auth.currentUser?.uid?.let {
-            db.getReference("bookingRequests").orderByChild("driverId").equalTo(it).get().addOnSuccessListener {
-                if(it.exists()){
-                    for (child in it.children) {
+            db.getReference("bookingRequests").orderByChild("driverId").equalTo(it).get().addOnSuccessListener { snap ->
+                var activeBookingId: String? = null
+                if(snap.exists()){
+                    for (child in snap.children) {
                         val booking = child.getValue(BookingRequest::class.java)
-                        if (booking != null && booking.status != "COMPLETED" && booking.status != "CANCELED") {
+                        if (booking != null && booking.status != "COMPLETED" && booking.status != "CANCELED" && booking.status != "NO_DRIVERS" && booking.status != "ERROR") {
+                            activeBookingId = booking.bookingId
+                            // Keep listening to the active booking
                             listenForActiveBooking(booking.bookingId!!)
                             break
                         }
                     }
+                }
+                // Toggle the return button visibility
+                if (activeBookingId != null) {
+                    binding.buttonReturnToActiveTrip.visibility = View.VISIBLE
+                    binding.buttonReturnToActiveTrip.setOnClickListener {
+                        // Ask for confirmation before resuming
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("Resume active trip")
+                            .setMessage("You have an active trip. Resume now?")
+                            .setPositiveButton("Resume") { dialog, _ ->
+                                activeBookingId?.let { id -> listenForActiveBooking(id) }
+                                dialog.dismiss()
+                            }
+                            .setNegativeButton("Stay here") { dialog, _ -> dialog.dismiss() }
+                            .show()
+                    }
+                } else {
+                    binding.buttonReturnToActiveTrip.visibility = View.GONE
                 }
             }
         }
@@ -665,5 +834,97 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             .addOnFailureListener {
                 // Ignore failures; rules may restrict cross-read. Placeholder remains.
             }
+    }
+
+    private fun goOnline() {
+        // Ensure location permission before going online
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+            binding.switchDriverStatus.isChecked = false
+            return
+        }
+
+        binding.switchDriverStatus.text = getString(R.string.status_online)
+
+        // Enable My Location layer on map if available
+        if (playServicesAvailable) {
+            try {
+                mMap?.isMyLocationEnabled = true
+            } catch (_: SecurityException) {
+                // Ignored: permission checked above
+            }
+        }
+
+        // Mark driver online and set presence cleanup
+        driverRef?.child("isOnline")?.setValue(true)
+        driverRef?.onDisconnect()?.removeValue()
+
+        // Backfill displayName/vehicle/phone in Realtime if missing
+        backfillDriverProfileToRealtime()
+
+        // Start location updates and listen for new offers
+        startLocationUpdates()
+        attachDriverOffersListener()
+
+        // Show status card by default until offers arrive
+        showDefaultView()
+        Toast.makeText(this, "You are now online", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(
+            a.latitude, a.longitude,
+            b.latitude, b.longitude,
+            results
+        )
+        return (results[0] / 1000.0)
+    }
+
+    private fun startDriverTripTimer(startMs: Long, perMin: Double, base: Double, perKm: Double, distanceKm: Double) {
+        stopDriverTripTimer()
+        val handler = android.os.Handler(mainLooper)
+        driverTripTimerHandler = handler
+    
+        // Show initial and km fees immediately
+        binding.textViewDriverInitialFee.visibility = View.VISIBLE
+        binding.textViewDriverInitialFee.text = String.format("Initial fee: ₱%.2f", base)
+    
+        val kmFee = distanceKm * perKm
+        binding.textViewDriverKmFee.visibility = View.VISIBLE
+        binding.textViewDriverKmFee.text = String.format("Km fee (₱%.1f/km): %.2f km | ₱%.2f", perKm, distanceKm, kmFee)
+    
+        driverTripTimerRunnable = object : Runnable {
+            override fun run() {
+                val elapsedMs = System.currentTimeMillis() - startMs
+                val totalSeconds = (elapsedMs / 1000).toInt()
+                val minutes = totalSeconds / 60
+                val seconds = totalSeconds % 60
+                val timeFee = minutes * perMin
+    
+                binding.textViewDriverTimeFee.visibility = View.VISIBLE
+                binding.textViewDriverTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMin, minutes, seconds, timeFee)
+    
+                val finalFare = base + kmFee + timeFee
+                binding.textViewDriverFinalFare.visibility = View.VISIBLE
+                binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", finalFare)
+    
+                handler.postDelayed(this, 1000L)
+            }
+        }
+        handler.post(driverTripTimerRunnable!!)
+    }
+
+    private fun stopDriverTripTimer() {
+        driverTripTimerHandler?.removeCallbacks(driverTripTimerRunnable ?: return)
+        driverTripTimerHandler = null
+        driverTripTimerRunnable = null
+        binding.textViewDriverTimeFee.visibility = View.GONE
+        binding.textViewDriverInitialFee.visibility = View.GONE
+        binding.textViewDriverKmFee.visibility = View.GONE
     }
 }

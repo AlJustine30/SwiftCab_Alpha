@@ -22,7 +22,7 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         val destinationTextView: TextView = view.findViewById(R.id.textViewDriverHistoryDestination)
         val statusTextView: TextView = view.findViewById(R.id.textViewDriverHistoryStatus)
         val ratingBar: RatingBar = view.findViewById(R.id.ratingBarDriverHistory)
-        // val priceTextView: TextView = view.findViewById(R.id.textViewDriverHistoryPrice) // Uncomment if price is used
+        val priceTextView: TextView = view.findViewById(R.id.textViewDriverHistoryPrice)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -39,8 +39,14 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         holder.pickupTextView.text = "From: ${booking.pickupAddress ?: "N/A"}"
         holder.destinationTextView.text = "To: ${booking.destinationAddress ?: "N/A"}"
         holder.statusTextView.text = "Status: ${booking.status ?: "N/A"}"
-        // holder.priceTextView.text = String.format("Fare: $%.2f", booking.fare ?: 0.0) // to be added
-        // holder.priceTextView.visibility = if (booking.fare != null) View.VISIBLE else View.GONE
+
+        val amount = booking.finalFare ?: booking.estimatedFare
+        if (amount != null) {
+            holder.priceTextView.visibility = View.VISIBLE
+            holder.priceTextView.text = holder.itemView.context.getString(R.string.fare_label, amount)
+        } else {
+            holder.priceTextView.visibility = View.GONE
+        }
 
         val rating = booking.riderRating
         if (rating != null && rating > 0f) {

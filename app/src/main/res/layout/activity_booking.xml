@@ -122,6 +122,15 @@
                 android:paddingTop="4dp"
                 android:paddingBottom="8dp"/>
 
+            <TextView
+                android:id="@+id/textViewEstimatedFare"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Estimated Fare: ₱0.00"
+                android:textStyle="bold"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"/>
+
             <LinearLayout
                 android:id="@+id/modeSelectionLayout"
                 android:layout_width="match_parent"
@@ -182,6 +191,32 @@
                 android:layout_gravity="center_horizontal"
                 android:layout_marginBottom="8dp"/>
 
+            <!-- Completed Trip Summary -->
+            <TextView
+                android:id="@+id/textViewFinalFare"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Fare: ₱0.00"
+                android:textStyle="bold"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:id="@+id/textViewDuration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Duration: 0 min"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:id="@+id/textViewFareBreakdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Fare breakdown"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp"/>
+            
             <TextView
                 android:id="@+id/textViewDriverNameStatus"
                 android:layout_width="wrap_content"
@@ -254,6 +289,33 @@
                 android:text="@string/status_message_driver_en_route"
                 style="?attr/textAppearanceBody2"
                 android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/textViewInitialFee"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Initial fee: ₱0.00"
+                style="?attr/textAppearanceBody2"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:id="@+id/textViewTimeFee"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Time fee (₱2/min): 0 min | ₱0.00"
+                style="?attr/textAppearanceBody2"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:id="@+id/textViewKmFee"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Km fee (₱13.5/km): 0.00 km | ₱0.00"
+                style="?attr/textAppearanceBody2"
+                android:visibility="gone"
                 android:layout_marginBottom="16dp"/>
 
             <Button
@@ -353,4 +415,5 @@
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-
+
+

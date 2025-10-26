@@ -72,6 +72,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentPolyline: Polyline? = null
     private var driverMarker: Marker? = null
 
+    private var tripTimerHandler: android.os.Handler? = null
+    private var tripTimerRunnable: Runnable? = null
+
     private lateinit var auth: FirebaseAuth
     private lateinit var firestore: FirebaseFirestore
 
@@ -83,10 +86,38 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         private const val TAG = "BookingActivity"
     }
 
+    // Estimated fare calculation
+    private val BASE_FARE = 50.0
+    private val PER_KM_RATE = 13.5
+
+    private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
+        val R = 6371.0 // km
+        val dLat = Math.toRadians(b.latitude - a.latitude)
+        val dLon = Math.toRadians(b.longitude - a.longitude)
+        val lat1 = Math.toRadians(a.latitude)
+        val lat2 = Math.toRadians(b.latitude)
+        val aa = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa))
+        return R * c
+    }
+
+    private fun updateEstimatedFareIfReady() {
+        val pickup = pickupLocationLatLng
+        val dest = destinationLatLng
+        if (pickup != null && dest != null) {
+            val distanceKm = calculateDistanceKm(pickup, dest)
+            val estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+            binding.textViewEstimatedFare.text = String.format(java.util.Locale.getDefault(), "Estimated Fare: ₱%.2f", estimatedFare)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityBookingBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.textViewEstimatedFare.text = ""
 
         auth = FirebaseAuth.getInstance()
         firestore = FirebaseFirestore.getInstance()
@@ -131,6 +162,8 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         setupPlaceAutocomplete()
         observeViewModel()
+        // Attempt to resume any active booking for this rider
+        viewModel.resumeActiveBookingIfAny()
     }
 
     private fun setupUI() {
@@ -170,6 +203,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
                     setPickupMarker(latLng)
                     selectionMode = SelectionMode.NONE
+                    updateEstimatedFareIfReady()
                 }
             }
             override fun onError(status: Status) {
@@ -184,6 +218,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.destinationEditText.setText(place.address ?: place.name ?: "")
                     setDestinationMarker(latLng)
                     selectionMode = SelectionMode.NONE
+                    updateEstimatedFareIfReady()
                 }
             }
             override fun onError(status: Status) {
@@ -217,6 +252,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.destinationEditText.setText(address)
                     setDestinationMarker(latLng)
                 }
+                updateEstimatedFareIfReady()
             }
         }
     }
@@ -239,12 +275,14 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         pickupMarker?.remove()
         pickupMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Pickup"))
         mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+        updateEstimatedFareIfReady()
     }
 
     private fun setDestinationMarker(latLng: LatLng) {
         destinationMarker?.remove()
         destinationMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Drop-off"))
         mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+        updateEstimatedFareIfReady()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -296,6 +334,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 // No-op
             }
         }
+        updateEstimatedFareIfReady()
     }
 
     private fun observeViewModel() {
@@ -332,6 +371,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     destinationLatLng = state.dropOffLocation
                     setPickupMarker(state.pickupLocation)
                     setDestinationMarker(state.dropOffLocation)
+                    updateEstimatedFareIfReady()
 
                     binding.textViewDriverNameStatus.text = state.driverName
                     binding.textViewVehicleDetailsStatus.text = state.vehicleDetails
@@ -355,6 +395,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     destinationLatLng = state.dropOffLocation
                     setPickupMarker(state.pickupLocation)
                     setDestinationMarker(state.dropOffLocation)
+                    updateEstimatedFareIfReady()
                 }
                 is BookingUiState.TripInProgress -> {
                     binding.infoCardView.visibility = View.GONE
@@ -368,6 +409,16 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     destinationLatLng = state.dropOffLocation
                     setPickupMarker(state.pickupLocation)
                     setDestinationMarker(state.dropOffLocation)
+                    updateEstimatedFareIfReady()
+
+                    // Start or update timer for per-minute fee
+                    val startMs = state.tripStartedAt ?: System.currentTimeMillis()
+                    val perMin = state.perMinuteRate ?: 2.0
+                    val base = state.fareBase ?: 0.0
+                    startTripTimer(startMs, perMin, base)
+
+                    // Ensure total fare label is visible during trip
+                    binding.textViewFinalFare.visibility = View.VISIBLE
 
                     binding.textViewDriverNameStatus.text = state.driverName
                     binding.textViewVehicleDetailsStatus.text = state.vehicleDetails
@@ -380,15 +431,67 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.TripCompleted -> {
+                    stopTripTimer()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.GONE
                     binding.noDriversLayout.visibility = View.GONE
-                    binding.textViewBookingStatusHeader.text = "Trip completed"
-                    binding.textViewTripStatusMessage.text = "Please rate your driver"
+                    binding.textViewBookingStatusHeader.text = getString(R.string.payment_confirmed_message)
+                    binding.textViewTripStatusMessage.text = getString(R.string.payment_confirmed_message)
+
+                    // Show final fare and duration for transparency
+                    val total = state.finalFare ?: 0.0
+                    val minutes = state.durationMinutes ?: 0
+                    val base = state.fareBase ?: 0.0
+                    val perKm = state.perKmRate ?: 0.0
+                    val perMin = state.perMinuteRate ?: 0.0
+                    val km = state.distanceKm ?: 0.0
+
+                    binding.textViewFinalFare.visibility = View.VISIBLE
+                    binding.textViewDuration.visibility = View.VISIBLE
+                    binding.textViewFareBreakdown.visibility = View.VISIBLE
+
+                    binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", total)
+                    binding.textViewDuration.text = String.format("Duration: %d min", minutes)
+                    binding.textViewFareBreakdown.text = String.format(
+                        "Breakdown: Base ₱%.2f + %.2f km × ₱%.2f + %d min × ₱%.2f = ₱%.2f",
+                        base, km, perKm, minutes, perMin, total
+                    )
+
                     clearDriverMarker()
                     clearRoute()
                     showRiderRatingDialog(state.bookingId, state.driverId)
+                }
+                is BookingUiState.AwaitingPayment -> {
+                    stopTripTimer()
+                    binding.infoCardView.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.VISIBLE
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.noDriversLayout.visibility = View.GONE
+                    binding.textViewBookingStatusHeader.text = getString(R.string.awaiting_payment_header)
+                    binding.textViewTripStatusMessage.text = getString(R.string.awaiting_payment_message)
+
+                    val total = state.finalFare ?: 0.0
+                    val minutes = state.durationMinutes ?: 0
+                    val base = state.fareBase ?: 0.0
+                    val perKm = state.perKmRate ?: 0.0
+                    val perMin = state.perMinuteRate ?: 0.0
+                    val km = state.distanceKm ?: 0.0
+
+                    binding.textViewFinalFare.visibility = View.VISIBLE
+                    binding.textViewDuration.visibility = View.VISIBLE
+                    binding.textViewFareBreakdown.visibility = View.VISIBLE
+
+                    binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", total)
+                    binding.textViewDuration.text = String.format("Duration: %d min", minutes)
+                    binding.textViewFareBreakdown.text = String.format(
+                        "Breakdown: Base ₱%.2f + %.2f km × ₱%.2f + %d min × ₱%.2f = ₱%.2f",
+                        base, km, perKm, minutes, perMin, total
+                    )
+
+                    clearDriverMarker()
+                    clearRoute()
+                    // Do NOT show review until payment is confirmed
                 }
                 is BookingUiState.Canceled -> {
                     binding.infoCardView.visibility = View.VISIBLE
@@ -481,6 +584,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Preserve existing markers and route; only update pickup/destination markers
         pickupLocationLatLng?.let { setPickupMarker(it) }
         destinationLatLng?.let { setDestinationMarker(it) }
+        updateEstimatedFareIfReady()
     }
 
     private fun updateDriverMarker(latLng: LatLng) {
@@ -520,6 +624,57 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun hideBookingStatusCard() {
         binding.bookingStatusCardView.visibility = View.GONE
         binding.infoCardView.visibility = View.VISIBLE
+    }
+
+    private fun startTripTimer(startMillis: Long, perMinuteRate: Double, initialFee: Double) {
+        val handler = tripTimerHandler ?: android.os.Handler(mainLooper).also { tripTimerHandler = it }
+        tripTimerRunnable?.let { handler.removeCallbacks(it) }
+
+        // Show initial fee immediately
+        binding.textViewInitialFee.visibility = View.VISIBLE
+        binding.textViewInitialFee.text = String.format("Initial fee: ₱%.2f", initialFee)
+
+        // Compute and show km fee once
+        val pickupPos = pickupMarker?.position
+        val destPos = destinationMarker?.position
+        var distanceKm: Double? = null
+        var kmFee: Double? = null
+        if (pickupPos != null && destPos != null) {
+            distanceKm = calculateDistanceKm(pickupPos, destPos)
+            kmFee = distanceKm * PER_KM_RATE
+            binding.textViewKmFee.visibility = View.VISIBLE
+            binding.textViewKmFee.text = String.format("Km fee (₱%.1f/km): %.2f km | ₱%.2f", PER_KM_RATE, distanceKm, kmFee)
+        } else {
+            binding.textViewKmFee.visibility = View.GONE
+        }
+
+        // Update time fee every second and total fare each minute increment
+        tripTimerRunnable = Runnable {
+            val elapsedMs = System.currentTimeMillis() - startMillis
+            val totalSeconds = (elapsedMs / 1000).toInt()
+            val minutes = totalSeconds / 60
+            val seconds = totalSeconds % 60
+            val timeFee = minutes * perMinuteRate
+            binding.textViewTimeFee.visibility = View.VISIBLE
+            binding.textViewTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMinuteRate, minutes, seconds, timeFee)
+
+            // Compute and show running total fare
+            val totalFare = initialFee + (kmFee ?: 0.0) + timeFee
+            binding.textViewFinalFare.visibility = View.VISIBLE
+            binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", totalFare)
+
+            handler.postDelayed(tripTimerRunnable!!, 1000L)
+        }
+        handler.post(tripTimerRunnable!!)
+    }
+
+    private fun stopTripTimer() {
+        tripTimerRunnable?.let { tripTimerHandler?.removeCallbacks(it) }
+        tripTimerRunnable = null
+        binding.textViewTimeFee.visibility = View.GONE
+        binding.textViewInitialFee.visibility = View.GONE
+        binding.textViewKmFee.visibility = View.GONE
+        // Keep final fare visible for AwaitingPayment/Completed states; hide here only if card switches
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {

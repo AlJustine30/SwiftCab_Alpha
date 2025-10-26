@@ -11,33 +11,39 @@ const db = admin.database();
 const firestore = admin.firestore();
 
 /**
- * V2 Cloud Function triggered when a booking'''s status changes.
- * If the status becomes "COMPLETED", it archives the booking to Firestore and deletes it from Realtime DB.
+ * Archive a booking when its status becomes COMPLETED.
+ * Triggered on status updates rather than creation.
  */
-exports.archiveBooking = onValueCreated("/bookingRequests/{bookingId}", async (event) => {
-    const bookingSnapshot = event.data;
-    const bookingData = bookingSnapshot.val();
+exports.archiveBooking = require("firebase-functions/v2/database").onValueUpdated("/bookingRequests/{bookingId}/status", async (event) => {
+    const newStatusSnap = event.data.after; // RTDB snapshot of the status node
+    const oldStatusSnap = event.data.before;
     const bookingId = event.params.bookingId;
 
-    if (bookingData.status === "COMPLETED") {
-        logger.log(`Archiving booking ${bookingId}`);
+    if (!newStatusSnap.exists()) return null;
+    const newStatus = newStatusSnap.val();
+    const oldStatus = oldStatusSnap.exists() ? oldStatusSnap.val() : null;
 
+    if (newStatus === "COMPLETED" && oldStatus !== "COMPLETED") {
         try {
-            // 1. Copy the data to Firestore
+            // Read full booking data from parent node
+            const bookingRef = newStatusSnap.ref.parent; // /bookingRequests/{bookingId}
+            const bookingSnapshot = await bookingRef.once("value");
+            const bookingData = bookingSnapshot.val();
+            if (!bookingData) return null;
+
             await firestore.collection("completedBookings").doc(bookingId).set(bookingData);
-
-            // 2. Delete the original from Realtime Database
-            await bookingSnapshot.ref.remove();
-
-            logger.log(`Successfully archived booking ${bookingId} to Firestore.`);
-            return null;
+            await bookingRef.remove();
+            logger.log(`Archived booking ${bookingId} to Firestore and removed from RTDB.`);
         } catch (error) {
-            logger.error(`Error archiving booking ${bookingId}:`, error);
-            return null;
+            logger.error(`archiveBooking error for ${bookingId}:`, error);
         }
     }
     return null;
 });
+
+
+// archiveBooking is now handled by an onValueUpdated trigger on '/bookingRequests/{bookingId}/status' above.
+// Removing legacy onValueCreated handler to avoid duplicate exports.
 
 
 /**
@@ -60,6 +66,20 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
     logger.log(`New booking ${bookingId}:`, bookingData);
 
     try {
+        // Compute and attach estimated fare server-side (fallback if missing)
+        try {
+            const pickup = { latitude: bookingData.pickupLatitude, longitude: bookingData.pickupLongitude };
+            const dropoff = { latitude: bookingData.destinationLatitude, longitude: bookingData.destinationLongitude };
+            const distanceKm = typeof bookingData.distanceKm === "number" ? bookingData.distanceKm : getDistance(pickup, dropoff);
+            const fareBase = typeof bookingData.fareBase === "number" ? bookingData.fareBase : 50;
+            const perKmRate = typeof bookingData.perKmRate === "number" ? bookingData.perKmRate : 13.5;
+            const perMinuteRate = typeof bookingData.perMinuteRate === "number" ? bookingData.perMinuteRate : 2;
+            const estimatedFare = typeof bookingData.estimatedFare === "number" ? bookingData.estimatedFare : fareBase + perKmRate * distanceKm;
+            await snapshot.ref.update({ distanceKm, fareBase, perKmRate, perMinuteRate, estimatedFare });
+        } catch (e) {
+            logger.warn(`onBookingCreated: failed to compute estimate for ${bookingId}`, e);
+        }
+
         // Get all online drivers from the "drivers" node.
         const driversSnapshot = await db.ref("drivers").orderByChild("isOnline").equalTo(true).once("value");
 
@@ -157,7 +177,8 @@ exports.updateTripStatus = onCall(async (request) => {
         "ACCEPTED": ["EN_ROUTE_TO_PICKUP"],
         "EN_ROUTE_TO_PICKUP": ["ARRIVED_AT_PICKUP"],
         "ARRIVED_AT_PICKUP": ["EN_ROUTE_TO_DROPOFF"],
-        "EN_ROUTE_TO_DROPOFF": ["COMPLETED"],
+        "EN_ROUTE_TO_DROPOFF": ["AWAITING_PAYMENT"],
+        "AWAITING_PAYMENT": ["COMPLETED"],
     };
 
     const allowedNextStates = validTransitions[bookingData.status];
@@ -166,8 +187,31 @@ exports.updateTripStatus = onCall(async (request) => {
         throw new HttpsError("failed-precondition", `Cannot transition from ${bookingData.status} to ${newStatus}.`);
     }
 
-    // Update the booking status.
-    await bookingRef.update({ status: newStatus });
+    // Update the booking status and timing/fare when appropriate.
+    if (newStatus === "EN_ROUTE_TO_DROPOFF") {
+        await bookingRef.update({ status: newStatus, tripStartedAt: Date.now() });
+    } else if (newStatus === "AWAITING_PAYMENT") {
+        const end = Date.now();
+        const start = typeof bookingData.tripStartedAt === "number" ? bookingData.tripStartedAt : end;
+        const durationMinutes = Math.max(0, Math.round((end - start) / 60000));
+    
+        const fareBase = typeof bookingData.fareBase === "number" ? bookingData.fareBase : 50;
+        const perKmRate = typeof bookingData.perKmRate === "number" ? bookingData.perKmRate : 13.5;
+        const perMinuteRate = typeof bookingData.perMinuteRate === "number" ? bookingData.perMinuteRate : 2;
+    
+        const pickup = { latitude: bookingData.pickupLatitude, longitude: bookingData.pickupLongitude };
+        const dropoff = { latitude: bookingData.destinationLatitude, longitude: bookingData.destinationLongitude };
+        const distanceKm = typeof bookingData.distanceKm === "number" ? bookingData.distanceKm : getDistance(pickup, dropoff);
+        const estimatedFare = typeof bookingData.estimatedFare === "number" ? bookingData.estimatedFare : fareBase + perKmRate * distanceKm;
+        const finalFare = estimatedFare + perMinuteRate * durationMinutes;
+    
+        await bookingRef.update({ status: newStatus, tripEndedAt: end, durationMinutes, finalFare });
+    } else if (newStatus === "COMPLETED") {
+        // Ensure paymentConfirmed is recorded server-side to avoid client DB rule issues
+        await bookingRef.update({ status: newStatus, paymentConfirmed: true });
+    } else {
+        await bookingRef.update({ status: newStatus });
+    }
 
     logger.log(`Trip ${bookingId} updated to ${newStatus} by driver ${driverId}.`);
 

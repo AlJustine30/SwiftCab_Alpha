@@ -64,6 +64,14 @@
             android:stepSize="0.5"
             android:visibility="gone" />
 
+        <TextView
+            android:id="@+id/textViewHistoryPrice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Fare: ₱0.00"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/btnRate"
             android:layout_width="wrap_content"

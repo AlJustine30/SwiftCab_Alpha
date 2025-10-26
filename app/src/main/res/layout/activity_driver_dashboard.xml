@@ -17,14 +17,14 @@
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+            android:theme="@style/ThemeOverlay.Material3.Dark.ActionBar">
 
-            <androidx.appcompat.widget.Toolbar
+            <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/toolbar_driver_dashboard"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
                 android:background="?attr/colorPrimary"
-                app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+                app:popupTheme="@style/ThemeOverlay.Material3.Light"
                 app:title="Driver Dashboard" />
         </com.google.android.material.appbar.AppBarLayout>
 
@@ -57,6 +57,20 @@
                     android:text="@string/status_offline"/>
             </LinearLayout>
 
+            <Button
+                android:id="@+id/buttonReturnToActiveTrip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="Return to ongoing trip"
+                android:textAllCaps="false"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginTop="8dp"
+                android:visibility="gone"
+                app:layout_constraintTop_toBottomOf="@id/driver_status_layout"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+
             <!-- New Booking Request Layout -->
             <LinearLayout
                 android:id="@+id/booking_request_layout"
@@ -70,7 +84,7 @@
                 android:background="#E0E0E0"
                 android:visibility="gone"
                 tools:visibility="visible"
-                app:layout_constraintTop_toBottomOf="@id/driver_status_layout"
+                app:layout_constraintTop_toBottomOf="@id/buttonReturnToActiveTrip"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent">
 
@@ -140,6 +154,18 @@
             </LinearLayout>
 
             <!-- Map and Trip Details -->
+
+            <!-- NEW: RecyclerView for multiple booking offers -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerViewDriverOffers"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:layout_constraintTop_toBottomOf="@id/buttonReturnToActiveTrip"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintBottom_toTopOf="@id/trip_details_card"/>
+
             <FrameLayout
                 android:id="@+id/trip_details_map_container"
                 android:layout_width="0dp"
@@ -208,12 +234,53 @@
                         android:layout_marginTop="4dp"
                         android:text="Dropoff: " />
 
+                    <TextView
+                        android:id="@+id/textViewDriverInitialFee"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Initial fee: ₱0.00"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/textViewDriverTimeFee"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Time fee (₱2/min): 0 min | ₱0.00"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/textViewDriverKmFee"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Km fee (₱13.5/km): 0.00 km | ₱0.00"
+                        android:visibility="gone" />
+
                     <Button
                         android:id="@+id/trip_action_button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
                         android:text="Start Trip" />
+
+                    <!-- Final fare and payment confirmation shown after completion -->
+                    <TextView
+                        android:id="@+id/textViewDriverFinalFare"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Fare: ₱0.00"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/buttonPaymentConfirmed"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Payment Confirmed"
+                        android:visibility="gone" />
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -233,3 +300,5 @@
         app:menu="@menu/driver_navigation_menu" />
 
 </androidx.drawerlayout.widget.DrawerLayout>
+
+

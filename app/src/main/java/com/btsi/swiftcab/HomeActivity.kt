@@ -12,6 +12,9 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
 import com.google.android.material.navigation.NavigationView
@@ -47,6 +50,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
+        // Enable edge-to-edge content
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
 
@@ -67,6 +73,19 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         drawerLayout.addDrawerListener(toggle)
         toggle.syncState()
 
+        // Apply insets to the toolbar and content container
+        val contentContainer = findViewById<android.widget.LinearLayout>(R.id.home_content_container)
+        ViewCompat.setOnApplyWindowInsetsListener(toolbar) { view, insets ->
+            val statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars())
+            view.setPadding(view.paddingLeft, statusBars.top, view.paddingRight, view.paddingBottom)
+            insets
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(contentContainer) { view, insets ->
+            val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, navBars.bottom)
+            insets
+        }
+
         // Access header views
         val headerView = navView.getHeaderView(0)
         headerProfileImage = headerView.findViewById(R.id.nav_header_profile_image)
@@ -84,8 +103,53 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupUserDataListener()
 
         val bookNowButton = findViewById<Button>(R.id.BookNowButton)
+        val returnToBookingButton = findViewById<Button>(R.id.ReturnToBookingButton)
         bookNowButton.setOnClickListener {
             startActivity(Intent(this, BookingActivity::class.java))
+        }
+        returnToBookingButton.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Resume ongoing trip")
+                .setMessage("You have an ongoing trip. Do you want to resume now?")
+                .setPositiveButton("Resume") { dialog, _ ->
+                    startActivity(Intent(this, BookingActivity::class.java))
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Stay here") { dialog, _ -> dialog.dismiss() }
+                .show()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Check for ongoing booking and toggle button visibility; prompt to resume
+        val uid = auth.currentUser?.uid ?: return
+        val ref = com.google.firebase.database.FirebaseDatabase.getInstance().getReference("bookingRequests")
+        ref.orderByChild("riderId").equalTo(uid).get().addOnSuccessListener { snapshot ->
+            var hasOngoing = false
+            snapshot.children.forEach { child ->
+                val req = child.getValue(com.btsi.swiftcab.models.BookingRequest::class.java)
+                val status = req?.status
+                if (status != null && status !in listOf("COMPLETED", "CANCELED", "NO_DRIVERS", "ERROR")) {
+                    hasOngoing = true
+                }
+            }
+            val btn = findViewById<Button>(R.id.ReturnToBookingButton)
+            if (hasOngoing) {
+                btn.visibility = android.view.View.VISIBLE
+                // Ask for confirmation instead of auto-opening
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Resume ongoing trip")
+                    .setMessage("You have an ongoing trip. Do you want to resume now?")
+                    .setPositiveButton("Resume") { dialog, _ ->
+                        startActivity(Intent(this, BookingActivity::class.java))
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Not now") { dialog, _ -> dialog.dismiss() }
+                    .show()
+            } else {
+                btn.visibility = android.view.View.GONE
+            }
         }
     }
 
@@ -119,14 +183,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     Glide.with(this@HomeActivity)
                         .load(profileImageUrl)
                         .placeholder(R.drawable.default_profile)
-                        .error(R.drawable.default_profile)
-                        .circleCrop()
                         .into(headerProfileImage)
                 } else {
                     Log.d(TAG, "Current data: null")
-                    headerUserName.text = "User Name"
-                    userNameTextView.text = "Welcome, User"
-                    headerProfileImage.setImageResource(R.drawable.default_profile)
                 }
             }
     }
@@ -175,4 +234,3 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         userListener?.remove()
     }
 }
-
