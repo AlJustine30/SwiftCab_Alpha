@@ -59,7 +59,7 @@
             android:name=".BookingActivity"
             android:exported="false" />
 
-        <activity 
+        <activity
             android:name=".BookingHistoryActivity"
             android:exported="false"
             android:label="@string/title_activity_booking_history" 
@@ -82,6 +82,7 @@
             android:exported="false"
             android:label="My Ratings"
             android:parentActivityName=".HomeActivity" />
+        <activity android:name=".DriverEarningsActivity" />
 
     </application>
 

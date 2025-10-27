@@ -150,7 +150,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                     startActivity(Intent(this, DriverRatingsActivity::class.java))
                 }
                 R.id.nav_driver_earnings -> {
-                    Toast.makeText(this, "Earnings clicked", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, DriverEarningsActivity::class.java))
                 }
                 R.id.nav_driver_settings -> {
                     Toast.makeText(this, "Settings clicked", Toast.LENGTH_SHORT).show()
