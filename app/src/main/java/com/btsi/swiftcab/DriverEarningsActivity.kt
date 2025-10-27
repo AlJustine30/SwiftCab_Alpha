@@ -9,6 +9,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.btsi.swiftcab.models.BookingRequest
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -29,6 +32,9 @@ class DriverEarningsActivity : AppCompatActivity() {
     private lateinit var buttonPickDate: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var textViewError: TextView
+    private lateinit var recyclerViewEarnings: RecyclerView
+    private lateinit var textViewNoEarnings: TextView
+    private lateinit var earningsAdapter: DriverEarningsAdapter
 
     private val currencyFormat: NumberFormat = NumberFormat.getCurrencyInstance(Locale.getDefault())
     private val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -51,6 +57,12 @@ class DriverEarningsActivity : AppCompatActivity() {
         buttonPickDate = findViewById(R.id.buttonPickDate)
         progressBar = findViewById(R.id.progressBarEarnings)
         textViewError = findViewById(R.id.textViewError)
+        recyclerViewEarnings = findViewById(R.id.recyclerViewEarnings)
+        textViewNoEarnings = findViewById(R.id.textViewNoEarnings)
+
+        recyclerViewEarnings.layoutManager = LinearLayoutManager(this)
+        earningsAdapter = DriverEarningsAdapter(mutableListOf())
+        recyclerViewEarnings.adapter = earningsAdapter
 
         buttonPickDate.setOnClickListener { openDatePicker() }
 
@@ -122,11 +134,25 @@ class DriverEarningsActivity : AppCompatActivity() {
             .get()
             .addOnSuccessListener { docs ->
                 var total = 0.0
+                val entries = mutableListOf<BookingRequest>()
                 for (doc in docs) {
-                    val fare = doc.getDouble("finalFare") ?: doc.getDouble("estimatedFare") ?: 0.0
+                    val booking = doc.toObject(BookingRequest::class.java)
+                    booking.bookingId = doc.id
+                    val fare = booking.finalFare ?: booking.estimatedFare ?: 0.0
                     total += fare
+                    entries.add(booking)
                 }
                 textViewEarningsTotal.text = "Total: ${formatCurrency(total)}"
+
+                if (entries.isEmpty()) {
+                    textViewNoEarnings.visibility = View.VISIBLE
+                    recyclerViewEarnings.visibility = View.GONE
+                } else {
+                    textViewNoEarnings.visibility = View.GONE
+                    recyclerViewEarnings.visibility = View.VISIBLE
+                    earningsAdapter.setData(entries)
+                }
+
                 textViewError.visibility = View.GONE
                 showLoading(false)
             }
@@ -134,6 +160,8 @@ class DriverEarningsActivity : AppCompatActivity() {
                 textViewError.text = "Error: ${e.message}\nIf the error mentions an index, please create the composite Firestore index for (driverId, status, timestamp)."
                 textViewError.visibility = View.VISIBLE
                 textViewEarningsTotal.text = "Total: ${formatCurrency(0.0)}"
+                textViewNoEarnings.visibility = View.VISIBLE
+                recyclerViewEarnings.visibility = View.GONE
                 showLoading(false)
             }
     }

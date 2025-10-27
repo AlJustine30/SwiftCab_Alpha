@@ -18,7 +18,10 @@
         android:layout_height="wrap_content"
         android:isIndicator="true"
         android:numStars="5"
-        android:stepSize="0.5" />
+        android:stepSize="0.5"
+        android:progressTint="#FFC107"
+        android:secondaryProgressTint="#FFD54F"
+        android:progressBackgroundTint="#BDBDBD"/>
 
     <TextView
         android:id="@+id/itemComment"

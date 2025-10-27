@@ -33,7 +33,10 @@
             android:isIndicator="true"
             android:numStars="5"
             android:stepSize="0.5"
-            android:layout_marginTop="4dp"/>
+            android:layout_marginTop="4dp"
+            android:progressTint="#FFC107"
+            android:secondaryProgressTint="#FFD54F"
+            android:progressBackgroundTint="#BDBDBD"/>
 
         <ProgressBar
             android:id="@+id/progressBar"

@@ -59,7 +59,10 @@
             android:isIndicator="true"
             android:numStars="5"
             android:stepSize="0.5"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:progressTint="#FFC107"
+            android:secondaryProgressTint="#FFD54F"
+            android:progressBackgroundTint="#BDBDBD" />
 
         <!-- You can add fare/price later if it's part of BookingRequest -->
         <TextView

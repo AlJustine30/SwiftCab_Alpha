@@ -12,9 +12,6 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.GravityCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.bumptech.glide.Glide
 import com.google.android.material.navigation.NavigationView
@@ -50,9 +47,6 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
-        // Enable edge-to-edge content
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
 
@@ -72,19 +66,6 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         )
         drawerLayout.addDrawerListener(toggle)
         toggle.syncState()
-
-        // Apply insets to the toolbar and content container
-        val contentContainer = findViewById<android.widget.LinearLayout>(R.id.home_content_container)
-        ViewCompat.setOnApplyWindowInsetsListener(toolbar) { view, insets ->
-            val statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars())
-            view.setPadding(view.paddingLeft, statusBars.top, view.paddingRight, view.paddingBottom)
-            insets
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(contentContainer) { view, insets ->
-            val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, navBars.bottom)
-            insets
-        }
 
         // Access header views
         val headerView = navView.getHeaderView(0)

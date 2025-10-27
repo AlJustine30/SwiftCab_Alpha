@@ -62,7 +62,10 @@
             android:isIndicator="true"
             android:numStars="5"
             android:stepSize="0.5"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:progressTint="#FFC107"
+            android:secondaryProgressTint="#FFD54F"
+            android:progressBackgroundTint="#BDBDBD" />
 
         <TextView
             android:id="@+id/textViewHistoryPrice"
