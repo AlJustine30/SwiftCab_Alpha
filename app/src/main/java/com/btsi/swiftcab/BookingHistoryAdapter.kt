@@ -15,7 +15,8 @@ import java.util.Locale
 class BookingHistoryAdapter(
     private val bookingHistoryList: List<BookingRequest>,
     private val userType: String, // "driver" or "rider"
-    private val onRateClick: (BookingRequest) -> Unit
+    private val onRateClick: (BookingRequest) -> Unit,
+    private val onReportClick: (BookingRequest) -> Unit
 ) : RecyclerView.Adapter<BookingHistoryAdapter.BookingHistoryViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookingHistoryViewHolder {
@@ -26,7 +27,7 @@ class BookingHistoryAdapter(
 
     override fun onBindViewHolder(holder: BookingHistoryViewHolder, position: Int) {
         val currentItem = bookingHistoryList[position]
-        holder.bind(currentItem, userType, onRateClick)
+        holder.bind(currentItem, userType, onRateClick, onReportClick)
     }
 
     override fun getItemCount() = bookingHistoryList.size
@@ -40,13 +41,15 @@ class BookingHistoryAdapter(
         private val ratingBarHistory: RatingBar = itemView.findViewById(R.id.ratingBarHistory)
         private val textViewPrice: TextView = itemView.findViewById(R.id.textViewHistoryPrice)
         private val btnRate: Button = itemView.findViewById(R.id.btnRate)
+        private val btnReport: Button = itemView.findViewById(R.id.btnReport)
 
-        fun bind(booking: BookingRequest, userType: String, onRateClick: (BookingRequest) -> Unit) {
+        fun bind(booking: BookingRequest, userType: String, onRateClick: (BookingRequest) -> Unit, onReportClick: (BookingRequest) -> Unit) {
             val context = itemView.context
             textViewDate.text = context.getString(R.string.history_date, formatDate(booking.timestamp))
             if (userType == "driver") {
                 textViewUserName.text = context.getString(R.string.history_rider, booking.riderName ?: "N/A")
                 btnRate.visibility = View.GONE // Drivers rate from the dashboard
+                btnReport.visibility = View.GONE // Driver history does not report via rider UI
             } else {
                 textViewUserName.text = context.getString(R.string.history_driver, booking.driverName ?: "N/A")
                 if (booking.status == "COMPLETED" && !booking.riderRated) {
@@ -55,6 +58,9 @@ class BookingHistoryAdapter(
                 } else {
                     btnRate.visibility = View.GONE
                 }
+                // Allow reporting on any trip; most relevant for completed trips
+                btnReport.visibility = View.VISIBLE
+                btnReport.setOnClickListener { onReportClick(booking) }
             }
             textViewPickup.text = context.getString(R.string.history_pickup, booking.pickupAddress)
             textViewDestination.text = context.getString(R.string.history_destination, booking.destinationAddress)

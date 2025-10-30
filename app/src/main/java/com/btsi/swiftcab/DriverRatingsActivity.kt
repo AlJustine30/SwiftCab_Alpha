@@ -9,6 +9,7 @@ import com.btsi.swiftcab.databinding.ActivityDriverRatingsBinding
 import com.btsi.swiftcab.models.Rating
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 class DriverRatingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDriverRatingsBinding
@@ -45,6 +46,7 @@ class DriverRatingsActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.VISIBLE
         firestore.collection("ratings")
             .whereEqualTo("ratedId", uidToUse)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { snap ->
                 var items = snap.documents.mapNotNull { it.toObject(Rating::class.java) }

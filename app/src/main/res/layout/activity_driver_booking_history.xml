@@ -6,13 +6,12 @@
     android:layout_height="match_parent"
     tools:context=".DriverBookingHistoryActivity">
 
-    <androidx.appcompat.widget.Toolbar
+    <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar_driver_booking_history"
+        style="@style/Widget.SwiftCab.Toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
         app:title="Booking History"
-        app:titleTextColor="@android:color/white"
         app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.recyclerview.widget.RecyclerView

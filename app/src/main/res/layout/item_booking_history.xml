@@ -27,7 +27,8 @@
             android:layout_marginTop="4dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
             android:textStyle="bold"
-            android:text="Driver: N/A" />
+            android:text="Driver: N/A"
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
             android:id="@+id/textViewHistoryPickup"
@@ -35,7 +36,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
-            android:text="From: N/A" />
+            android:text="From: N/A"
+            android:fontFamily="sans-serif" />
 
         <TextView
             android:id="@+id/textViewHistoryDestination"
@@ -43,7 +45,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
-            android:text="To: N/A" />
+            android:text="To: N/A"
+            android:fontFamily="sans-serif" />
 
         <TextView
             android:id="@+id/textViewHistoryStatus"
@@ -52,7 +55,8 @@
             android:layout_marginTop="8dp"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
             android:textStyle="italic"
-            android:text="Status: N/A" />
+            android:text="Status: N/A"
+            android:fontFamily="sans-serif" />
 
         <RatingBar
             android:id="@+id/ratingBarHistory"
@@ -75,13 +79,22 @@
             android:text="Fare: ₱0.00"
             android:visibility="gone" />
 
-        <Button
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnRate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Rate Driver"
+            style="@style/Widget.SwiftCab.MaterialButton"
             android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReport"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Report Issue"
+            style="@style/Widget.SwiftCab.MaterialButton" />
 
     </LinearLayout>
 

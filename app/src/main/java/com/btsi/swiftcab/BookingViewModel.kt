@@ -10,6 +10,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -172,7 +173,14 @@ class BookingViewModel(
                         val riderName = auth.currentUser?.displayName?.takeIf { it.isNotBlank() } ?: riderNameFromFirestore ?: "Unknown Rider"
 
                         val distanceKm = calculateDistanceKm(pickupLatLng, destinationLatLng)
-                        val estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                        var estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+
+                        // Apply next-booking discount if present
+                        val discountPercent = (doc.getLong("nextBookingDiscountPercent") ?: 0L).toInt()
+                        if (discountPercent > 0) {
+                            val discountFactor = 1.0 - (discountPercent / 100.0)
+                            estimatedFare *= discountFactor
+                        }
 
                         val bookingRequest = BookingRequest(
                             bookingId = bookingId,
@@ -195,6 +203,11 @@ class BookingViewModel(
                         )
                         bookingRequestsRef.child(bookingId).setValue(bookingRequest)
                             .addOnSuccessListener {
+                                // Consume the pending discount so it applies only once
+                                if (discountPercent > 0) {
+                                    firestore.collection("users").document(riderId)
+                                        .update(mapOf("nextBookingDiscountPercent" to 0))
+                                }
                                 listenForBookingStatus(bookingId)
                             }
                             .addOnFailureListener { e ->
@@ -259,7 +272,18 @@ class BookingViewModel(
             val docId = booking.bookingId ?: return
             firestore.collection("bookinghistory").document(docId)
                 .set(data)
-                .addOnSuccessListener { Log.d(TAG, "Booking archived to history: $docId") }
+                .addOnSuccessListener {
+                    Log.d(TAG, "Booking archived to history: $docId")
+                    // Award loyalty points (1 point per ₱100 spent)
+                    val fareAmount = booking.finalFare ?: booking.estimatedFare ?: 0.0
+                    val points = Math.floor(fareAmount / 100.0).toLong()
+                    if (points > 0L) {
+                        firestore.collection("users").document(riderId)
+                            .update("loyaltyPoints", FieldValue.increment(points))
+                            .addOnSuccessListener { Log.d(TAG, "Awarded $points loyalty points to $riderId") }
+                            .addOnFailureListener { e -> Log.e(TAG, "Failed to award points", e) }
+                    }
+                }
                 .addOnFailureListener { e -> Log.e(TAG, "Failed to archive booking: $docId", e) }
         } catch (e: Exception) {
             Log.e(TAG, "Error archiving booking", e)
@@ -657,7 +681,18 @@ class BookingViewModelLegacy(
             val docId = booking.bookingId ?: return
             firestore.collection("bookinghistory").document(docId)
                 .set(data)
-                .addOnSuccessListener { Log.d(TAG, "Booking archived to history: $docId") }
+                .addOnSuccessListener {
+                    Log.d(TAG, "Booking archived to history: $docId")
+                    // Award loyalty points (1 point per ₱100 spent)
+                    val fareAmount = booking.finalFare ?: booking.estimatedFare ?: 0.0
+                    val points = Math.floor(fareAmount / 100.0).toLong()
+                    if (points > 0L) {
+                        firestore.collection("users").document(riderId)
+                            .update("loyaltyPoints", FieldValue.increment(points))
+                            .addOnSuccessListener { Log.d(TAG, "Awarded $points loyalty points to $riderId") }
+                            .addOnFailureListener { e -> Log.e(TAG, "Failed to award points", e) }
+                    }
+                }
                 .addOnFailureListener { e -> Log.e(TAG, "Failed to archive booking: $docId", e) }
         } catch (e: Exception) {
             Log.e(TAG, "Error archiving booking", e)

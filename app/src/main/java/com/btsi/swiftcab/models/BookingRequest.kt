@@ -35,7 +35,9 @@ data class BookingRequest(
     var tripStartedAt: Long? = null,
     var tripEndedAt: Long? = null,
     var durationMinutes: Int? = null,
-    var paymentConfirmed: Boolean? = null
+    var paymentConfirmed: Boolean? = null,
+    // Loyalty / discount info
+    var appliedDiscountPercent: Int? = null
 )
 
 

@@ -9,9 +9,17 @@
             android:icon="@drawable/ic_history"
             android:title="Booking History" />
         <item
+            android:id="@+id/nav_loyalty"
+            android:icon="@drawable/ic_star"
+            android:title="Loyalty &amp; Rewards" />
+        <item
             android:id="@+id/nav_rider_ratings"
             android:icon="@drawable/ic_star"
             android:title="My Ratings" />
+        <item
+            android:id="@+id/nav_my_reports"
+            android:icon="@android:drawable/ic_menu_report_image"
+            android:title="My Reports" />
     </group>
 
     <!-- Group for actions like logout -->

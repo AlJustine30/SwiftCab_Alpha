@@ -6,16 +6,14 @@
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:theme="@style/ThemeOverlay.Material3.Dark.ActionBar">
+        android:layout_height="wrap_content">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbarDriverEarnings"
+            style="@style/Widget.SwiftCab.Toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
             app:title="Driver Earnings"
-            app:titleTextColor="?attr/colorOnPrimary"
             app:navigationIcon="@drawable/ic_arrow_back" />
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -32,7 +30,9 @@
             android:layout_height="wrap_content"
             android:text="Date:"
             android:textSize="16sp"
-            android:layout_marginTop="16dp" />
+            android:layout_marginTop="16dp"
+            android:textColor="@color/black"
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
             android:id="@+id/textViewEarningsTotal"
@@ -41,10 +41,13 @@
             android:text="Total: ₱0.00"
             android:textStyle="bold"
             android:textSize="18sp"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="8dp"
+            android:textColor="@color/black"
+            android:fontFamily="sans-serif-medium" />
 
-        <Button
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonPickDate"
+            style="@style/Widget.SwiftCab.MaterialButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Select Date"
@@ -63,7 +66,9 @@
             android:layout_height="wrap_content"
             android:text="No trips found for this date."
             android:visibility="gone"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="8dp"
+            android:textColor="@color/black"
+            android:fontFamily="sans-serif" />
 
         <ProgressBar
             android:id="@+id/progressBarEarnings"

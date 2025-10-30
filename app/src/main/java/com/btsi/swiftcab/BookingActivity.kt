@@ -78,6 +78,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var auth: FirebaseAuth
     private lateinit var firestore: FirebaseFirestore
 
+    // Correct for server/client clock skew when computing elapsed trip time
+    private var serverTimeOffsetMs: Long = 0L
+
     private enum class SelectionMode { NONE, PICKUP, DROPOFF }
     private var selectionMode: SelectionMode = SelectionMode.NONE
 
@@ -121,6 +124,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         auth = FirebaseAuth.getInstance()
         firestore = FirebaseFirestore.getInstance()
+
+        // Show discount indicator if rider has a pending next-booking discount
+        updateDiscountIndicator()
+
+        // Fetch server time offset once to avoid timer delay at start
+        initServerTimeOffset()
 
         playServicesAvailable = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS
 
@@ -415,6 +424,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     val startMs = state.tripStartedAt ?: System.currentTimeMillis()
                     val perMin = state.perMinuteRate ?: 2.0
                     val base = state.fareBase ?: 0.0
+                    
+                    // Debug logging to check timer values
+                    Log.d("BookingActivity", "TripInProgress - tripStartedAt: ${state.tripStartedAt}, perMinuteRate: ${state.perMinuteRate}, fareBase: ${state.fareBase}")
+                    Log.d("BookingActivity", "Starting timer with startMs: $startMs, perMin: $perMin, base: $base")
+                    
                     startTripTimer(startMs, perMin, base)
 
                     // Ensure total fare label is visible during trip
@@ -627,8 +641,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun startTripTimer(startMillis: Long, perMinuteRate: Double, initialFee: Double) {
-        val handler = tripTimerHandler ?: android.os.Handler(mainLooper).also { tripTimerHandler = it }
-        tripTimerRunnable?.let { handler.removeCallbacks(it) }
+        Log.d("BookingActivity", "startTripTimer called with startMillis: $startMillis, perMinuteRate: $perMinuteRate, initialFee: $initialFee")
+
+        // Ensure any previous timer is fully stopped before starting a new one
+        stopTripTimer()
+
+        val handler = android.os.Handler(mainLooper)
+        tripTimerHandler = handler
 
         // Show initial fee immediately
         binding.textViewInitialFee.visibility = View.VISIBLE
@@ -637,44 +656,104 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Compute and show km fee once
         val pickupPos = pickupMarker?.position
         val destPos = destinationMarker?.position
-        var distanceKm: Double? = null
-        var kmFee: Double? = null
-        if (pickupPos != null && destPos != null) {
-            distanceKm = calculateDistanceKm(pickupPos, destPos)
-            kmFee = distanceKm * PER_KM_RATE
+        val kmFee: Double? = if (pickupPos != null && destPos != null) {
+            val distanceKm = calculateDistanceKm(pickupPos, destPos)
             binding.textViewKmFee.visibility = View.VISIBLE
-            binding.textViewKmFee.text = String.format("Km fee (₱%.1f/km): %.2f km | ₱%.2f", PER_KM_RATE, distanceKm, kmFee)
+            binding.textViewKmFee.text = String.format("Km fee (₱%.1f/km): %.2f km | ₱%.2f", PER_KM_RATE, distanceKm, distanceKm * PER_KM_RATE)
+            distanceKm * PER_KM_RATE
         } else {
             binding.textViewKmFee.visibility = View.GONE
+            null
         }
 
         // Update time fee every second and total fare each minute increment
-        tripTimerRunnable = Runnable {
-            val elapsedMs = System.currentTimeMillis() - startMillis
-            val totalSeconds = (elapsedMs / 1000).toInt()
-            val minutes = totalSeconds / 60
-            val seconds = totalSeconds % 60
-            val timeFee = minutes * perMinuteRate
-            binding.textViewTimeFee.visibility = View.VISIBLE
-            binding.textViewTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMinuteRate, minutes, seconds, timeFee)
+        tripTimerRunnable = object : Runnable {
+            override fun run() {
+                // Use server-corrected time to avoid initial 1-minute stall
+                val serverNowMs = System.currentTimeMillis() + serverTimeOffsetMs
+                val rawElapsedMs = serverNowMs - startMillis
+                val elapsedMs = if (rawElapsedMs < 0) 0L else rawElapsedMs
+                val totalSeconds = (elapsedMs / 1000).toInt()
+                val minutes = totalSeconds / 60
+                val seconds = totalSeconds % 60
+                val timeFee = minutes * perMinuteRate
 
-            // Compute and show running total fare
-            val totalFare = initialFee + (kmFee ?: 0.0) + timeFee
-            binding.textViewFinalFare.visibility = View.VISIBLE
-            binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", totalFare)
+                Log.d("BookingActivity", "Timer tick - elapsedMs: $elapsedMs, minutes: $minutes, seconds: $seconds, timeFee: $timeFee")
 
-            handler.postDelayed(tripTimerRunnable!!, 1000L)
+                binding.textViewTimeFee.visibility = View.VISIBLE
+                binding.textViewTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMinuteRate, minutes, seconds, timeFee)
+
+                // Compute and show running total fare
+                val totalFare = initialFee + (kmFee ?: 0.0) + timeFee
+                binding.textViewFinalFare.visibility = View.VISIBLE
+                binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", totalFare)
+
+                handler.postDelayed(this, 1000L)
+            }
         }
-        handler.post(tripTimerRunnable!!)
+        // Run first tick immediately so the timer appears to start instantly
+        tripTimerRunnable!!.run()
     }
 
     private fun stopTripTimer() {
+        Log.d("BookingActivity", "stopTripTimer called")
         tripTimerRunnable?.let { tripTimerHandler?.removeCallbacks(it) }
         tripTimerRunnable = null
         binding.textViewTimeFee.visibility = View.GONE
         binding.textViewInitialFee.visibility = View.GONE
         binding.textViewKmFee.visibility = View.GONE
         // Keep final fare visible for AwaitingPayment/Completed states; hide here only if card switches
+    }
+
+    private fun initServerTimeOffset() {
+        try {
+            val db = FirebaseDatabase.getInstance()
+            db.getReference(".info/serverTimeOffset").addListenerForSingleValueEvent(
+                object : com.google.firebase.database.ValueEventListener {
+                    override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                        val offset = snapshot.getValue(Long::class.java)
+                        serverTimeOffsetMs = offset ?: 0L
+                        Log.d(TAG, "Server time offset: $serverTimeOffsetMs ms")
+                    }
+
+                    override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                        Log.w(TAG, "Server time offset load cancelled: ${error.message}")
+                        serverTimeOffsetMs = 0L
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to init server time offset", e)
+            serverTimeOffsetMs = 0L
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh discount indicator in case it changed (e.g., after redemption)
+        updateDiscountIndicator()
+    }
+
+    private fun updateDiscountIndicator() {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            binding.textViewDiscountApplied.visibility = View.GONE
+            return
+        }
+        firestore.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                val percent = (doc.getLong("nextBookingDiscountPercent") ?: 0L).toInt()
+                if (percent > 0) {
+                    binding.textViewDiscountApplied.visibility = View.VISIBLE
+                    binding.textViewDiscountApplied.text = "Discount applied: ${percent}%"
+                } else {
+                    binding.textViewDiscountApplied.visibility = View.GONE
+                }
+            }
+            .addOnFailureListener {
+                // On failure, hide to avoid stale/incorrect info
+                binding.textViewDiscountApplied.visibility = View.GONE
+            }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -709,6 +788,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
         val etComments = dialogView.findViewById<EditText>(R.id.editTextComments)
         val btnSubmit = dialogView.findViewById<Button>(R.id.buttonSubmitRating)
+        val btnReport = dialogView.findViewById<Button>(R.id.buttonReportIssue)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle("Rate Your Driver")
@@ -724,6 +804,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             } else {
                 Toast.makeText(this, "Please provide a rating.", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        btnReport.setOnClickListener {
+            dialog.dismiss()
+            showIssueReportDialog(bookingId, driverId)
         }
 
         dialog.show()
@@ -757,6 +842,61 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to submit rating: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun showIssueReportDialog(bookingId: String, driverId: String) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_issue_report, null)
+        val etCategory = dialogView.findViewById<EditText>(R.id.editTextIssueCategory)
+        val etMessage = dialogView.findViewById<EditText>(R.id.editTextIssueMessage)
+        val btnSubmitIssue = dialogView.findViewById<Button>(R.id.buttonSubmitIssue)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Report an Issue")
+            .setView(dialogView)
+            .create()
+
+        btnSubmitIssue.setOnClickListener {
+            val category = etCategory.text.toString().trim()
+            val message = etMessage.text.toString().trim()
+            if (message.isBlank()) {
+                Toast.makeText(this, "Please describe the issue.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            submitIssueReport(bookingId, driverId, category, message)
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    private fun submitIssueReport(bookingId: String, driverId: String, category: String, message: String) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentRiderId = uid
+        val report = com.btsi.swiftcab.models.Report(
+            bookingId = bookingId,
+            reporterId = uid,
+            riderId = currentRiderId,
+            driverId = driverId,
+            message = message,
+            category = category,
+            timestamp = System.currentTimeMillis()
+        )
+
+        firestore.collection("reports").add(report)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Report submitted. Returning to Home…", Toast.LENGTH_LONG).show()
+                val intent = Intent(this, HomeActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(intent)
+                finish()
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to submit report: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
 private fun updateDriverRatingSummary(driverId: String?) {

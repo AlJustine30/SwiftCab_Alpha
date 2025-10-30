@@ -21,7 +21,7 @@
         android:enableOnBackInvokedCallback="true"
         tools:ignore="GoogleAppIndexingWarning">
 
-        <!-- Corrected API Key meta-data -->
+        <!-- Google Maps API key for map fragments -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyBpIuViGza83ArXqJdfv-wcnVfoDr4LhAM" />
@@ -81,6 +81,19 @@
             android:name=".RiderRatingsActivity"
             android:exported="false"
             android:label="My Ratings"
+            android:parentActivityName=".HomeActivity" />
+
+        <activity
+            android:name=".LoyaltyActivity"
+            android:exported="false"
+            android:label="Loyalty &amp; Rewards"
+            android:parentActivityName=".HomeActivity" />
+
+        <!-- Rider reports list screen -->
+        <activity
+            android:name=".MyReportsActivity"
+            android:exported="false"
+            android:label="My Reports"
             android:parentActivityName=".HomeActivity" />
         <activity android:name=".DriverEarningsActivity" />
 

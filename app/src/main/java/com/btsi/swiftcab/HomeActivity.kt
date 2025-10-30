@@ -183,8 +183,14 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_booking_history -> {
                 startActivity(Intent(this, BookingHistoryActivity::class.java))
             }
+            R.id.nav_loyalty -> {
+                startActivity(Intent(this, LoyaltyActivity::class.java))
+            }
             R.id.nav_rider_ratings -> {
                 startActivity(Intent(this, RiderRatingsActivity::class.java))
+            }
+            R.id.nav_my_reports -> {
+                startActivity(Intent(this, MyReportsActivity::class.java))
             }
             R.id.nav_logout -> {
                 auth.signOut()

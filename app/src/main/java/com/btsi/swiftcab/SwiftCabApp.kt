@@ -14,8 +14,7 @@ class SwiftCabApp : Application() {
         DynamicColors.applyToActivitiesIfAvailable(this)
 
         // Initialize the Google Places SDK
-        val apiKey = getString(R.string.google_maps_key)
-        Places.initialize(applicationContext, apiKey)
+        // val apiKey = getString(R.string.google_maps_key)
+        // Places.initialize(applicationContext, apiKey)
     }
 }
-

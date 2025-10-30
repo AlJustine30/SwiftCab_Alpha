@@ -7,11 +7,10 @@
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbarProfile"
+        style="@style/Widget.SwiftCab.Toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        app:title="Profile"
-        app:titleTextColor="@android:color/white" />
+        app:title="Profile" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -30,13 +29,14 @@
                 android:layout_gravity="center"
                 android:src="@drawable/default_profile" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/changeImageButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Change Image"
                 android:layout_gravity="center"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"
+                style="@style/Widget.SwiftCab.MaterialButton" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
@@ -90,26 +90,29 @@
                 android:text="Vehicle: -"
                 android:layout_marginTop="4dp" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/saveProfileButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Save Changes"
-                android:layout_marginTop="24dp" />
+                android:layout_marginTop="24dp"
+                style="@style/Widget.SwiftCab.MaterialButton" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/changePasswordButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Change Password"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"
+                style="@style/Widget.SwiftCab.MaterialButton" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/logoutButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Logout"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"
+                style="@style/Widget.SwiftCab.MaterialButton" />
 
         </LinearLayout>
     </ScrollView>

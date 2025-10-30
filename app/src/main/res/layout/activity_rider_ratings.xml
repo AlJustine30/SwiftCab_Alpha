@@ -7,11 +7,10 @@
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbarRatings"
+        style="@style/Widget.SwiftCab.Toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        app:title="My Ratings"
-        app:titleTextColor="@android:color/white" />
+        app:title="My Ratings" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -23,8 +22,10 @@
             android:id="@+id/textViewSummary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="My submitted ratings"
-            android:textSize="18sp"/>
+            android:text="You have submitted 0 ratings"
+            android:textSize="18sp"
+            android:textColor="@color/black"
+            android:fontFamily="sans-serif-medium"/>
 
         <ProgressBar
             android:id="@+id/progressBar"

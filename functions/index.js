@@ -9,6 +9,8 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.database();
 const firestore = admin.firestore();
+const authAdmin = admin.auth();
+const rtdbAdmin = admin.database();
 
 /**
  * Archive a booking when its status becomes COMPLETED.
@@ -31,7 +33,14 @@ exports.archiveBooking = require("firebase-functions/v2/database").onValueUpdate
             const bookingData = bookingSnapshot.val();
             if (!bookingData) return null;
 
-            await firestore.collection("completedBookings").doc(bookingId).set(bookingData);
+            // Write to the collection used by the apps for history views
+            const historyDoc = {
+                ...bookingData,
+                // Ensure status is finalized and timestamp exists for ordering/indexes
+                status: "COMPLETED",
+                timestamp: typeof bookingData.timestamp === "number" ? bookingData.timestamp : (bookingData.tripEndedAt || Date.now()),
+            };
+            await firestore.collection("bookinghistory").doc(bookingId).set(historyDoc);
             await bookingRef.remove();
             logger.log(`Archived booking ${bookingId} to Firestore and removed from RTDB.`);
         } catch (error) {
@@ -44,6 +53,46 @@ exports.archiveBooking = require("firebase-functions/v2/database").onValueUpdate
 
 // archiveBooking is now handled by an onValueUpdated trigger on '/bookingRequests/{bookingId}/status' above.
 // Removing legacy onValueCreated handler to avoid duplicate exports.
+
+/** Utility to normalize history docs */
+function sanitizeHistoryDoc(data) {
+  if (!data) return {};
+  const ts = typeof data.timestamp === "number" ? data.timestamp : (data.tripEndedAt || Date.now());
+  return {
+    ...data,
+    status: data.status || "COMPLETED",
+    timestamp: ts,
+  };
+}
+
+/**
+ * Callable backfill: copy all docs from completedBookings -> bookinghistory
+ */
+exports.backfillCompletedToHistory = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in to run backfill.");
+  }
+  try {
+    const snap = await firestore.collection("completedBookings").get();
+    let written = 0;
+    const batch = firestore.batch();
+    snap.forEach((doc) => {
+      const data = sanitizeHistoryDoc(doc.data());
+      batch.set(firestore.collection("bookinghistory").doc(doc.id), data, { merge: true });
+      written++;
+    });
+    await batch.commit();
+    logger.log(`backfillCompletedToHistory: wrote ${written} docs`);
+    return { ok: true, written };
+  } catch (err) {
+    logger.error("backfillCompletedToHistory error", err);
+    throw new HttpsError("internal", err.message || "Backfill failed");
+  }
+});
+
+/**
+ * Callable backfill: copy all docs from bookinghistory -> completedBookings
+ */
 
 
 /**
@@ -209,6 +258,26 @@ exports.updateTripStatus = onCall(async (request) => {
     } else if (newStatus === "COMPLETED") {
         // Ensure paymentConfirmed is recorded server-side to avoid client DB rule issues
         await bookingRef.update({ status: newStatus, paymentConfirmed: true });
+
+        // Also archive directly to Firestore bookinghistory so history is guaranteed
+        try {
+            const afterSnapshot = await bookingRef.once("value");
+            const afterData = afterSnapshot.val();
+            if (afterData) {
+                const ts = typeof afterData.timestamp === "number" ? afterData.timestamp : (afterData.tripEndedAt || Date.now());
+                const historyDoc = {
+                    ...afterData,
+                    status: "COMPLETED",
+                    timestamp: ts,
+                };
+                await firestore.collection("bookinghistory").doc(bookingId).set(historyDoc, { merge: true });
+                logger.log(`updateTripStatus: archived ${bookingId} to bookinghistory`);
+            } else {
+                logger.warn(`updateTripStatus: no data found to archive for ${bookingId}`);
+            }
+        } catch (err) {
+            logger.error(`updateTripStatus: failed to archive ${bookingId}`, err);
+        }
     } else {
         await bookingRef.update({ status: newStatus });
     }
@@ -440,6 +509,77 @@ exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (e
     );
   } catch (err) {
     logger.error("aggregateDriverRating error", err);
+  }
+});
+
+/**
+ * Callable: Promote the current user to RTDB-readable admin via custom claims.
+ * Requires that Firestore users/{uid}.role === 'Admin'.
+ */
+exports.promoteSelfToAdmin = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const uid = request.auth.uid;
+  try {
+    const doc = await firestore.collection("users").doc(uid).get();
+    if (!doc.exists || doc.get("role") !== "Admin") {
+      throw new HttpsError("permission-denied", "You are not an Admin.");
+    }
+    const user = await authAdmin.getUser(uid);
+    const existing = user.customClaims || {};
+    if (existing.admin === true) {
+      return { ok: true, alreadyAdmin: true };
+    }
+    await authAdmin.setCustomUserClaims(uid, { ...existing, admin: true });
+    return { ok: true, alreadyAdmin: false };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    throw new HttpsError("internal", err.message || "Failed to set admin claim");
+  }
+});
+
+/**
+ * Callable: Return booked driver IDs and booking counts.
+ * Reads RTDB with admin privileges, so client does not need RTDB read access.
+ */
+exports.getBookedDrivers = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const uid = request.auth.uid;
+  // Only Admins can call
+  const doc = await firestore.collection("users").doc(uid).get();
+  if (!doc.exists || doc.get("role") !== "Admin") {
+    throw new HttpsError("permission-denied", "You are not an Admin.");
+  }
+
+  try {
+    const snap = await rtdbAdmin.ref("bookingRequests").once("value");
+    const data = snap.val() || {};
+    const activeStates = new Set([
+      "ACCEPTED",
+      "EN_ROUTE_TO_PICKUP",
+      "ARRIVED_AT_PICKUP",
+      "EN_ROUTE_TO_DROPOFF",
+      "AWAITING_PAYMENT",
+    ]);
+    const driverIds = new Set();
+    let pendingCount = 0;
+    let activeCount = 0;
+    Object.keys(data).forEach((id) => {
+      const b = data[id] || {};
+      const st = String(b.status || "").toUpperCase();
+      if (st === "SEARCHING") pendingCount++;
+      if (activeStates.has(st)) {
+        activeCount++;
+        const dId = b.driverId || b.assignedDriverId || b.driverID;
+        if (dId) driverIds.add(String(dId));
+      }
+    });
+    return { driverIds: Array.from(driverIds), pendingCount, activeCount };
+  } catch (err) {
+    throw new HttpsError("internal", err.message || "Failed to read bookings");
   }
 });
 

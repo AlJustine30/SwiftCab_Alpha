@@ -1,6 +1,8 @@
 package com.btsi.swiftcab
 
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RatingBar
@@ -42,16 +44,73 @@ class BookingHistoryActivity : AppCompatActivity() {
         recyclerViewBookingHistory = findViewById(R.id.recyclerViewBookingHistory)
         recyclerViewBookingHistory.layoutManager = LinearLayoutManager(this)
 
-        bookingHistoryAdapter = BookingHistoryAdapter(bookingHistoryList, "rider") { booking ->
-            if (booking.status == "COMPLETED" && !booking.riderRated) {
-                showRatingDialog(booking)
-            } else {
-                Toast.makeText(this, "You have already rated this trip.", Toast.LENGTH_SHORT).show()
+        bookingHistoryAdapter = BookingHistoryAdapter(
+            bookingHistoryList,
+            "rider",
+            onRateClick = { booking ->
+                if (booking.status == "COMPLETED" && !booking.riderRated) {
+                    showRatingDialog(booking)
+                } else {
+                    Toast.makeText(this, "You have already rated this trip.", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onReportClick = { booking ->
+                showReportDialog(booking)
             }
-        }
+        )
         recyclerViewBookingHistory.adapter = bookingHistoryAdapter
 
         fetchRiderBookingHistory()
+    }
+
+    private fun showReportDialog(booking: BookingRequest) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_issue_report, null)
+        val etCategory = dialogView.findViewById<EditText>(R.id.editTextIssueCategory)
+        val etMessage = dialogView.findViewById<EditText>(R.id.editTextIssueMessage)
+        val btnSubmitIssue = dialogView.findViewById<Button>(R.id.buttonSubmitIssue)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Report an Issue")
+            .setView(dialogView)
+            .create()
+
+        btnSubmitIssue.setOnClickListener {
+            val category = etCategory.text.toString().trim()
+            val message = etMessage.text.toString().trim()
+            if (message.isBlank()) {
+                Toast.makeText(this, "Please describe the issue.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            submitIssueReport(booking, category, message)
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    private fun submitIssueReport(booking: BookingRequest, category: String, message: String) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val report = com.btsi.swiftcab.models.Report(
+            bookingId = booking.bookingId ?: "",
+            reporterId = uid,
+            riderId = uid,
+            driverId = booking.driverId ?: "",
+            message = message,
+            category = category,
+            timestamp = System.currentTimeMillis()
+        )
+
+        firestore.collection("reports").add(report)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Report submitted. Our team will review it.", Toast.LENGTH_LONG).show()
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to submit report: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun showRatingDialog(booking: BookingRequest) {
@@ -195,5 +254,20 @@ class BookingHistoryActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_booking_history, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_my_reports -> {
+                startActivity(android.content.Intent(this, MyReportsActivity::class.java))
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 }

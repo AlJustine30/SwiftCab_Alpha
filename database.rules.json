@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "drivers": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "bookingRequests": {
+      ".read": "auth != null && auth.token.admin === true",
+      ".write": "auth != null"
+    },
+    "driverOffers": {
+      ".read": "auth != null && auth.uid != null",
+      ".write": "auth != null && auth.uid != null"
+    }
+  }
+}
