@@ -269,22 +269,9 @@ class BookingViewModel(
                 "distanceKm" to (booking.distanceKm ?: 0.0),
                 "paymentConfirmed" to (booking.paymentConfirmed ?: true)
             )
-            val docId = booking.bookingId ?: return
-            firestore.collection("bookinghistory").document(docId)
-                .set(data)
-                .addOnSuccessListener {
-                    Log.d(TAG, "Booking archived to history: $docId")
-                    // Award loyalty points (1 point per ₱100 spent)
-                    val fareAmount = booking.finalFare ?: booking.estimatedFare ?: 0.0
-                    val points = Math.floor(fareAmount / 100.0).toLong()
-                    if (points > 0L) {
-                        firestore.collection("users").document(riderId)
-                            .update("loyaltyPoints", FieldValue.increment(points))
-                            .addOnSuccessListener { Log.d(TAG, "Awarded $points loyalty points to $riderId") }
-                            .addOnFailureListener { e -> Log.e(TAG, "Failed to award points", e) }
-                    }
-                }
-                .addOnFailureListener { e -> Log.e(TAG, "Failed to archive booking: $docId", e) }
+            // Client should not write to bookinghistory directly; rules forbid it.
+            // Archiving is handled by Cloud Function on status=COMPLETED.
+            Log.d(TAG, "Archive skipped on client; handled server-side.")
         } catch (e: Exception) {
             Log.e(TAG, "Error archiving booking", e)
         }
@@ -678,22 +665,9 @@ class BookingViewModelLegacy(
                 "distanceKm" to (booking.distanceKm ?: 0.0),
                 "paymentConfirmed" to (booking.paymentConfirmed ?: true)
             )
-            val docId = booking.bookingId ?: return
-            firestore.collection("bookinghistory").document(docId)
-                .set(data)
-                .addOnSuccessListener {
-                    Log.d(TAG, "Booking archived to history: $docId")
-                    // Award loyalty points (1 point per ₱100 spent)
-                    val fareAmount = booking.finalFare ?: booking.estimatedFare ?: 0.0
-                    val points = Math.floor(fareAmount / 100.0).toLong()
-                    if (points > 0L) {
-                        firestore.collection("users").document(riderId)
-                            .update("loyaltyPoints", FieldValue.increment(points))
-                            .addOnSuccessListener { Log.d(TAG, "Awarded $points loyalty points to $riderId") }
-                            .addOnFailureListener { e -> Log.e(TAG, "Failed to award points", e) }
-                    }
-                }
-                .addOnFailureListener { e -> Log.e(TAG, "Failed to archive booking: $docId", e) }
+            // Client should not write to bookinghistory directly; rules forbid it.
+            // Archiving is handled by Cloud Function on status=COMPLETED.
+            Log.d(TAG, "Archive skipped on client; handled server-side.")
         } catch (e: Exception) {
             Log.e(TAG, "Error archiving booking", e)
         }

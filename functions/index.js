@@ -41,6 +41,29 @@ exports.archiveBooking = require("firebase-functions/v2/database").onValueUpdate
                 timestamp: typeof bookingData.timestamp === "number" ? bookingData.timestamp : (bookingData.tripEndedAt || Date.now()),
             };
             await firestore.collection("bookinghistory").doc(bookingId).set(historyDoc);
+
+            // Award loyalty points to rider: 1 point per ₱100 spent
+            try {
+                const riderId = bookingData.riderId;
+                if (riderId) {
+                    const fareAmount = typeof bookingData.finalFare === "number"
+                        ? bookingData.finalFare
+                        : (typeof bookingData.estimatedFare === "number" ? bookingData.estimatedFare : 0);
+                    const points = Math.floor(fareAmount / 100);
+                    if (points > 0) {
+                        await firestore.collection("users").doc(riderId)
+                            .update({ loyaltyPoints: admin.firestore.FieldValue.increment(points) });
+                        logger.log(`Awarded ${points} loyalty points to rider ${riderId} for booking ${bookingId}`);
+                    } else {
+                        logger.log(`No loyalty points awarded (fare=${fareAmount}) for booking ${bookingId}`);
+                    }
+                } else {
+                    logger.warn(`archiveBooking: missing riderId for booking ${bookingId}; cannot award points.`);
+                }
+            } catch (e) {
+                logger.error(`Failed to award loyalty points for booking ${bookingId}:`, e);
+            }
+
             await bookingRef.remove();
             logger.log(`Archived booking ${bookingId} to Firestore and removed from RTDB.`);
         } catch (error) {
