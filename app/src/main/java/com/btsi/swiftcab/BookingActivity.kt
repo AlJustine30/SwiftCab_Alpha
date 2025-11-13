@@ -1,3 +1,4 @@
+
 package com.btsi.swiftcab
 
 import android.Manifest
@@ -6,7 +7,10 @@ import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
+import android.view.inputmethod.InputMethodManager
+import android.content.Context
 import android.view.View
+import android.view.Gravity
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -29,6 +33,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.api.model.TypeFilter
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -181,11 +186,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         binding.buttonSelectPickupMode.setOnClickListener {
             selectionMode = SelectionMode.PICKUP
-            Toast.makeText(this, "Tap on the map to set Pickup", Toast.LENGTH_SHORT).show()
+            showTopBanner("Tap on the map to set Pickup")
         }
         binding.buttonSelectDropoffMode.setOnClickListener {
             selectionMode = SelectionMode.DROPOFF
-            Toast.makeText(this, "Tap on the map to set Drop-off", Toast.LENGTH_SHORT).show()
+            showTopBanner("Tap on the map to set Drop-off")
         }
         binding.buttonCurrentLocationPickup.setOnClickListener {
             setCurrentLocationAs(true)
@@ -194,6 +199,29 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             setCurrentLocationAs(false)
         }
         binding.backButtonBooking.setOnClickListener { finish() }
+
+        // Cancel actions
+        binding.buttonCancelWhileFinding.setOnClickListener {
+            // Prevent double taps
+            it.isEnabled = false
+            // Request cancellation via ViewModel
+            viewModel.cancelBooking()
+            // Immediately reflect in UI while backend updates propagate
+            binding.findingDriverLayout.visibility = View.GONE
+            binding.bookingStatusCardView.visibility = View.GONE
+            binding.infoCardView.visibility = View.VISIBLE
+            binding.noDriversLayout.visibility = View.VISIBLE
+            binding.textViewNoDriversMessage.text = "Booking canceled."
+            // Re-enable after short delay so user can interact again
+            it.postDelayed({ it.isEnabled = true }, 800)
+        }
+
+        binding.buttonCancelRideRider.setOnClickListener {
+            viewModel.cancelBooking()
+            hideBookingStatusCard()
+            binding.noDriversLayout.visibility = View.VISIBLE
+            binding.textViewNoDriversMessage.text = "Booking canceled."
+        }
     }
 
     private fun setupPlaceAutocomplete() {
@@ -205,6 +233,28 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         pickupFragment?.setPlaceFields(placeFields)
         destinationFragment?.setPlaceFields(placeFields)
 
+        // Suggest addresses by default to make selection practical
+        pickupFragment?.setTypeFilter(TypeFilter.ADDRESS)
+        destinationFragment?.setTypeFilter(TypeFilter.ADDRESS)
+
+        // Improve IME focus reliability for embedded Autocomplete fragments
+        val pickupSearch = pickupFragment?.view?.findViewById<EditText>(com.google.android.libraries.places.R.id.places_autocomplete_search_bar)
+        val destinationSearch = destinationFragment?.view?.findViewById<EditText>(com.google.android.libraries.places.R.id.places_autocomplete_search_bar)
+
+        fun showImeFor(view: View?) {
+            if (view == null) return
+            view.post {
+                view.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+
+        pickupSearch?.setOnClickListener { showImeFor(it) }
+        pickupSearch?.setOnFocusChangeListener { v, hasFocus -> if (hasFocus) showImeFor(v) }
+        destinationSearch?.setOnClickListener { showImeFor(it) }
+        destinationSearch?.setOnFocusChangeListener { v, hasFocus -> if (hasFocus) showImeFor(v) }
+
         pickupFragment?.setOnPlaceSelectedListener(object : PlaceSelectionListener {
             override fun onPlaceSelected(place: Place) {
                 place.latLng?.let { latLng ->
@@ -212,6 +262,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
                     setPickupMarker(latLng)
                     selectionMode = SelectionMode.NONE
+                    pickupSearch?.clearFocus()
                     updateEstimatedFareIfReady()
                 }
             }
@@ -227,6 +278,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.destinationEditText.setText(place.address ?: place.name ?: "")
                     setDestinationMarker(latLng)
                     selectionMode = SelectionMode.NONE
+                    destinationSearch?.clearFocus()
                     updateEstimatedFareIfReady()
                 }
             }
@@ -282,14 +334,24 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun setPickupMarker(latLng: LatLng) {
         pickupMarker?.remove()
-        pickupMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Pickup"))
+        pickupMarker = mMap?.addMarker(
+            MarkerOptions()
+                .position(latLng)
+                .title("Pickup")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+        )
         mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
         updateEstimatedFareIfReady()
     }
 
     private fun setDestinationMarker(latLng: LatLng) {
         destinationMarker?.remove()
-        destinationMarker = mMap?.addMarker(MarkerOptions().position(latLng).title("Drop-off"))
+        destinationMarker = mMap?.addMarker(
+            MarkerOptions()
+                .position(latLng)
+                .title("Drop-off")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+        )
         mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
         updateEstimatedFareIfReady()
     }
@@ -330,6 +392,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 setPickupMarker(latLng)
                 val address = getAddressFromLatLng(latLng)
                 binding.pickupLocationEditText.setText(address)
+                showTopBanner("Pickup point selected")
                 selectionMode = SelectionMode.NONE
             }
             SelectionMode.DROPOFF -> {
@@ -337,6 +400,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 setDestinationMarker(latLng)
                 val address = getAddressFromLatLng(latLng)
                 binding.destinationEditText.setText(address)
+                showTopBanner("Drop-off point selected")
                 selectionMode = SelectionMode.NONE
             }
             else -> {
@@ -344,6 +408,38 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
         updateEstimatedFareIfReady()
+    }
+
+    private fun showTopBanner(message: String) {
+        val banner = binding.topNotificationBanner
+        val text = binding.textViewTopBanner
+        text.text = message
+        if (banner.visibility != View.VISIBLE) {
+            banner.alpha = 0f
+            banner.translationY = -banner.height.toFloat()
+            banner.visibility = View.VISIBLE
+        }
+        banner.post {
+            banner.translationY = -banner.height.toFloat()
+            banner.animate().alpha(1f).translationY(0f).setDuration(200).start()
+        }
+        // Auto-hide after short delay
+        banner.removeCallbacks(hideBannerRunnable)
+        banner.postDelayed(hideBannerRunnable, 2200)
+    }
+
+    private val hideBannerRunnable = Runnable { hideTopBanner() }
+
+    private fun hideTopBanner() {
+        val banner = binding.topNotificationBanner
+        if (banner.visibility == View.VISIBLE) {
+            banner.animate()
+                .alpha(0f)
+                .translationY(-banner.height.toFloat())
+                .setDuration(200)
+                .withEndAction { banner.visibility = View.GONE }
+                .start()
+        }
     }
 
     private fun observeViewModel() {

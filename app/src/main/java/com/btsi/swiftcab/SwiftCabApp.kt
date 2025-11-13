@@ -13,8 +13,10 @@ class SwiftCabApp : Application() {
         // Enable Material You dynamic color across activities
         DynamicColors.applyToActivitiesIfAvailable(this)
 
-        // Initialize the Google Places SDK
-        // val apiKey = getString(R.string.google_maps_key)
-        // Places.initialize(applicationContext, apiKey)
+        // Initialize the Google Places SDK (required for Autocomplete fragments)
+        val apiKey = getString(R.string.google_maps_key)
+        if (!com.google.android.libraries.places.api.Places.isInitialized()) {
+            Places.initialize(applicationContext, apiKey)
+        }
     }
 }

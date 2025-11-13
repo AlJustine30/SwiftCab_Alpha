@@ -33,28 +33,59 @@
             android:layout_height="match_parent"
             app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-            <!-- Driver Status and Welcome Message -->
+            <!-- Driver Status and Welcome Message (rounded header card) -->
             <LinearLayout
                 android:id="@+id/driver_status_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:padding="16dp"
+                android:padding="20dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginTop="8dp"
+                android:elevation="6dp"
+                android:background="@drawable/bg_welcome_card"
                 app:layout_constraintTop_toTopOf="parent">
 
-                <TextView
-                    android:id="@+id/textViewDriverWelcome"
+                <ImageView
+                    android:id="@+id/imageViewDriverAvatar"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="12dp"
+                    android:src="@drawable/default_profile"
+                    android:contentDescription="Driver avatar" />
+
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Welcome,"/>
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/textViewDriverWelcome"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Welcome, Driver"
+                        android:textStyle="bold"
+                        android:textSize="18sp"
+                        android:textColor="@android:color/white" />
+
+                    <TextView
+                        android:id="@+id/textViewDriverMotto"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/swiftcab_motto"
+                        android:textSize="14sp"
+                        android:textColor="@android:color/white" />
+                </LinearLayout>
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switch_driver_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/status_offline"/>
+                    android:text="@string/status_offline"
+                    android:textColor="@android:color/white"/>
             </LinearLayout>
 
             <Button
@@ -81,76 +112,92 @@
                 android:layout_marginTop="16dp"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:background="#E0E0E0"
+                android:background="@android:color/transparent"
                 android:visibility="gone"
                 tools:visibility="visible"
                 app:layout_constraintTop_toBottomOf="@id/buttonReturnToActiveTrip"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/new_booking_request_title"/>
-
-                <ImageView
-                    android:id="@+id/imageViewPassengerProfileRequest"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="8dp"
-                    android:src="@drawable/ic_driver_profile"
-                    android:contentDescription="Passenger profile image" />
-
-                <TextView
-                    android:id="@+id/textViewPassengerNameInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Passenger: " />
-
-                <TextView
-                    android:id="@+id/textViewPassengerPhoneInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="Phone: " />
-
-                <TextView
-                    android:id="@+id/textViewPickupLocationInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/pickup_loading"/>
-
-                <TextView
-                    android:id="@+id/textViewDestinationLocationInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/destination_loading"/>
-
-                <LinearLayout
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="16dp">
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="6dp">
 
-                    <Button
-                        android:id="@+id/buttonAcceptBooking"
-                        android:layout_width="0dp"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/accept_button"
-                        android:layout_marginEnd="8dp"
-                        android:layout_marginRight="8dp" />
+                        android:orientation="vertical"
+                        android:padding="12dp">
 
-                    <Button
-                        android:id="@+id/buttonDeclineBooking"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/decline_button"/>
-                </LinearLayout>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/new_booking_request_title"
+                            android:textStyle="bold"
+                            android:textSize="16sp"/>
+
+                        <ImageView
+                            android:id="@+id/imageViewPassengerProfileRequest"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="8dp"
+                            android:src="@drawable/ic_driver_profile"
+                            android:contentDescription="Passenger profile image" />
+
+                        <TextView
+                            android:id="@+id/textViewPassengerNameInfo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Passenger: " />
+
+                        <TextView
+                            android:id="@+id/textViewPassengerPhoneInfo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Phone: " />
+
+                        <TextView
+                            android:id="@+id/textViewPickupLocationInfo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/pickup_loading"/>
+
+                        <TextView
+                            android:id="@+id/textViewDestinationLocationInfo"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/destination_loading"/>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="16dp">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/buttonAcceptBooking"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/accept_button"
+                                android:layout_marginEnd="8dp"
+                                style="@style/Widget.SwiftCab.MaterialButton" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/buttonDeclineBooking"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/decline_button"
+                                style="@style/Widget.SwiftCab.MaterialButton" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
             <!-- Map and Trip Details -->
@@ -189,6 +236,7 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone"
                 app:cardElevation="8dp"
+                app:cardCornerRadius="12dp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent">

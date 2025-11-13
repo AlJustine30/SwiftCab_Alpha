@@ -16,6 +16,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import kotlinx.coroutines.Dispatchers
@@ -72,8 +73,18 @@ class DriverMapActivity : AppCompatActivity(), OnMapReadyCallback {
         val pickupLatLng = LatLng(pickupLat, pickupLng)
         val destLatLng = LatLng(destLat, destLng)
 
-        mMap?.addMarker(MarkerOptions().position(pickupLatLng).title("Pickup"))
-        mMap?.addMarker(MarkerOptions().position(destLatLng).title("Destination"))
+        mMap?.addMarker(
+            MarkerOptions()
+                .position(pickupLatLng)
+                .title("Pickup")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+        )
+        mMap?.addMarker(
+            MarkerOptions()
+                .position(destLatLng)
+                .title("Destination")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+        )
 
         val shouldDrawRoute = status == "EN_ROUTE_TO_PICKUP" || status == "EN_ROUTE_TO_DROPOFF"
 

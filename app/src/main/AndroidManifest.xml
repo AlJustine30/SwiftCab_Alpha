@@ -24,7 +24,7 @@
         <!-- Google Maps API key for map fragments -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBpIuViGza83ArXqJdfv-wcnVfoDr4LhAM" />
+            android:value="@string/google_maps_key" />
 
         <activity
             android:name=".MainActivity"

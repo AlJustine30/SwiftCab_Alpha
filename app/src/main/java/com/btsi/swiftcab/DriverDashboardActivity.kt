@@ -50,6 +50,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private var mMap: GoogleMap? = null
     private var currentBooking: BookingRequest? = null
     private var currentPolyline: Polyline? = null
+    private var serverTimeOffsetMs: Long = 0L
     private var driverTripTimerHandler: android.os.Handler? = null
     private var driverTripTimerRunnable: Runnable? = null
     private val PER_KM_RATE = 13.5
@@ -79,6 +80,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         binding = ActivityDriverDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Initialize server time offset to align client clock with Firebase ServerValue.TIMESTAMP
+        initServerTimeOffset()
 
         playServicesAvailable = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
@@ -127,6 +131,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         binding.textViewDriverWelcome.text = "Welcome, ${currentUser.displayName ?: "Driver"}"
+        // Load actual driver name and profile image
+        loadCurrentDriverProfile()
+        // Default to offline color until switch toggled
+        updateStatusHeaderColor(false)
         driverRef = db.getReference("drivers").child(currentUser.uid)
 
         binding.switchDriverStatus.setOnCheckedChangeListener { _, isChecked ->
@@ -247,6 +255,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun goOffline() {
         binding.switchDriverStatus.text = getString(R.string.status_offline)
+        updateStatusHeaderColor(false)
         stopLocationUpdates()
         driverRef?.onDisconnect()?.cancel()
         driverRef?.removeValue()
@@ -436,8 +445,18 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
         mMap?.clear()
         currentPolyline?.remove()
-        mMap?.addMarker(MarkerOptions().position(pickupLatLng).title("Pickup"))
-        mMap?.addMarker(MarkerOptions().position(dropoffLatLng).title("Dropoff"))
+        mMap?.addMarker(
+            MarkerOptions()
+                .position(pickupLatLng)
+                .title("Pickup")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+        )
+        mMap?.addMarker(
+            MarkerOptions()
+                .position(dropoffLatLng)
+                .title("Dropoff")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+        )
 
         // Draw route if trip is active
         val shouldDrawRoute = booking.status == "EN_ROUTE_TO_PICKUP" || booking.status == "EN_ROUTE_TO_DROPOFF"
@@ -598,7 +617,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                     val b = currentBooking
                     if (b != null) {
                         val startMs = b.tripStartedAt ?: System.currentTimeMillis()
-                        val durationMinutes = ((System.currentTimeMillis() - startMs) / 60000).toInt()
+                        val serverNowMs = System.currentTimeMillis() + serverTimeOffsetMs
+                        val rawElapsedMs = serverNowMs - startMs
+                        val safeElapsedMs = if (rawElapsedMs < 0) 0L else rawElapsedMs
+                        val durationMinutes = (safeElapsedMs / 60000).toInt()
                         val perMin = b.perMinuteRate ?: 2.0
                         val base = b.fareBase ?: 50.0
                         val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
@@ -647,7 +669,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                             val b = currentBooking
                             if (b != null) {
                                 val startMs = b.tripStartedAt ?: System.currentTimeMillis()
-                                val durationMinutes = ((System.currentTimeMillis() - startMs) / 60000).toInt()
+                                val serverNowMs = System.currentTimeMillis() + serverTimeOffsetMs
+                                val rawElapsedMs = serverNowMs - startMs
+                                val safeElapsedMs = if (rawElapsedMs < 0) 0L else rawElapsedMs
+                                val durationMinutes = (safeElapsedMs / 60000).toInt()
                                 val perMin = b.perMinuteRate ?: 2.0
                                 val base = b.fareBase ?: 50.0
                                 val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
@@ -849,6 +874,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         binding.switchDriverStatus.text = getString(R.string.status_online)
+        updateStatusHeaderColor(true)
 
         // Enable My Location layer on map if available
         if (playServicesAvailable) {
@@ -875,6 +901,74 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         Toast.makeText(this, "You are now online", Toast.LENGTH_SHORT).show()
     }
 
+    // Update header background with rounded online/offline cards
+    private fun updateStatusHeaderColor(isOnline: Boolean) {
+        val drawableRes = if (isOnline) R.drawable.bg_status_online else R.drawable.bg_status_offline
+        binding.driverStatusLayout.setBackgroundResource(drawableRes)
+    }
+
+    // Load the current driver's name and profile image from Firestore, with fallbacks
+    private fun loadCurrentDriverProfile() {
+        val uid = auth.currentUser?.uid ?: return
+        // First try users/{uid}
+        firestore.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                var displayName: String? = doc.getString("displayName")
+                val imageUrl: String? = doc.getString("profileImageUrl")
+                if (!imageUrl.isNullOrBlank()) {
+                    Glide.with(this)
+                        .load(imageUrl)
+                        .placeholder(R.drawable.default_profile)
+                        .circleCrop()
+                        .into(binding.imageViewDriverAvatar)
+                }
+                if (displayName.isNullOrBlank()) {
+                    // Fallback to drivers/{uid} name
+                    firestore.collection("drivers").document(uid).get()
+                        .addOnSuccessListener { d2 ->
+                            val name = d2.getString("name")
+                            val img2 = d2.getString("profileImageUrl")
+                            if (!img2.isNullOrBlank()) {
+                                Glide.with(this)
+                                    .load(img2)
+                                    .placeholder(R.drawable.default_profile)
+                                    .circleCrop()
+                                    .into(binding.imageViewDriverAvatar)
+                            }
+                            val resolved = name ?: auth.currentUser?.displayName ?: "Driver"
+                            binding.textViewDriverWelcome.text = "Welcome, $resolved"
+                        }
+                        .addOnFailureListener {
+                            val resolved = auth.currentUser?.displayName ?: "Driver"
+                            binding.textViewDriverWelcome.text = "Welcome, $resolved"
+                        }
+                } else {
+                    binding.textViewDriverWelcome.text = "Welcome, $displayName"
+                }
+            }
+            .addOnFailureListener {
+                // If users doc fails, fallback to drivers/{uid}
+                firestore.collection("drivers").document(uid).get()
+                    .addOnSuccessListener { d2 ->
+                        val name = d2.getString("name")
+                        val imageUrl = d2.getString("profileImageUrl")
+                        if (!imageUrl.isNullOrBlank()) {
+                            Glide.with(this)
+                                .load(imageUrl)
+                                .placeholder(R.drawable.default_profile)
+                                .circleCrop()
+                                .into(binding.imageViewDriverAvatar)
+                        }
+                        val resolved = name ?: auth.currentUser?.displayName ?: "Driver"
+                        binding.textViewDriverWelcome.text = "Welcome, $resolved"
+                    }
+                    .addOnFailureListener {
+                        val resolved = auth.currentUser?.displayName ?: "Driver"
+                        binding.textViewDriverWelcome.text = "Welcome, $resolved"
+                    }
+            }
+    }
+
     private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
         val results = FloatArray(1)
         android.location.Location.distanceBetween(
@@ -883,6 +977,29 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             results
         )
         return (results[0] / 1000.0)
+    }
+
+    private fun initServerTimeOffset() {
+        try {
+            val db = FirebaseDatabase.getInstance()
+            db.getReference(".info/serverTimeOffset").addListenerForSingleValueEvent(
+                object : com.google.firebase.database.ValueEventListener {
+                    override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                        val offset = snapshot.getValue(Long::class.java)
+                        serverTimeOffsetMs = offset ?: 0L
+                        Log.d(TAG, "Server time offset (driver): $serverTimeOffsetMs ms")
+                    }
+
+                    override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                        Log.w(TAG, "Server time offset load cancelled (driver): ${error.message}")
+                        serverTimeOffsetMs = 0L
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to init server time offset (driver)", e)
+            serverTimeOffsetMs = 0L
+        }
     }
 
     private fun startDriverTripTimer(startMs: Long, perMin: Double, base: Double, perKm: Double, distanceKm: Double) {
@@ -900,7 +1017,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     
         driverTripTimerRunnable = object : Runnable {
             override fun run() {
-                val elapsedMs = System.currentTimeMillis() - startMs
+                // Use server-corrected current time to avoid negative elapsed
+                val serverNowMs = System.currentTimeMillis() + serverTimeOffsetMs
+                val rawElapsedMs = serverNowMs - startMs
+                val elapsedMs = if (rawElapsedMs < 0) 0L else rawElapsedMs
                 val totalSeconds = (elapsedMs / 1000).toInt()
                 val minutes = totalSeconds / 60
                 val seconds = totalSeconds % 60
