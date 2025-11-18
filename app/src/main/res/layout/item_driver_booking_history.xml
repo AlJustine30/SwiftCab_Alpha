@@ -85,5 +85,15 @@
             android:fontFamily="sans-serif"
             android:textColor="@color/black" />
 
+        <TextView
+            android:id="@+id/textViewDriverHistoryDiscount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:visibility="gone"
+            android:text="Discount: - ₱0.00"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/black" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

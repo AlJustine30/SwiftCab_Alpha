@@ -72,6 +72,40 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- Collapsible header -->
+            <LinearLayout
+                android:id="@+id/bookingPanelHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:id="@+id/bookingPanelTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Ride details"
+                    style="?attr/textAppearanceSubtitle1"
+                    android:textStyle="bold"/>
+
+                <ImageView
+                    android:id="@+id/buttonTogglePanel"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:padding="4dp"
+                    android:src="@android:drawable/arrow_down_float"
+                    android:contentDescription="Collapse panel" />
+            </LinearLayout>
+
+            <!-- Panel content container (collapsible) -->
+            <LinearLayout
+                android:id="@+id/bookingPanelContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
             <!-- Pickup Location Input -->
             <TextView
                 android:layout_width="wrap_content"
@@ -85,12 +119,15 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <fragment
-                    android:id="@+id/pickup_autocomplete_fragment"
-                    android:name="com.google.android.libraries.places.widget.AutocompleteSupportFragment"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonPickupSearch"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"/>
+                    android:layout_weight="1"
+                    android:text="Search a place"
+                    android:insetTop="8dp"
+                    android:insetBottom="8dp"/>
 
                 <ImageView
                     android:id="@+id/buttonCurrentLocationPickup"
@@ -126,12 +163,15 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <fragment
-                    android:id="@+id/destination_autocomplete_fragment"
-                    android:name="com.google.android.libraries.places.widget.AutocompleteSupportFragment"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonDestinationSearch"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"/>
+                    android:layout_weight="1"
+                    android:text="Search a place"
+                    android:insetTop="8dp"
+                    android:insetBottom="8dp"/>
                 <ImageView
                     android:id="@+id/buttonCurrentLocationDropoff"
                     android:layout_width="wrap_content"
@@ -158,18 +198,61 @@
                 android:layout_height="wrap_content"
                 android:text="Estimated Fare: ₱0.00"
                 android:textStyle="bold"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"/>
+                android:textSize="18sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp"/>
 
             <TextView
-                android:id="@+id/textViewDiscountApplied"
+                android:id="@+id/textViewEstimatedFareNote"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Discount applied: 0%"
-                android:textColor="@color/teal_700"
-                android:textSize="13sp"
+                android:text="Estimate may increase due to time to travel"
+                android:textSize="11sp"
+                android:textColor="@android:color/darker_gray"
+                android:fontFamily="sans-serif-light"
+                android:paddingBottom="8dp"/>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/discountCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:visibility="gone"
-                android:paddingBottom="4dp"/>
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/teal_700"
+                app:cardCornerRadius="12dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:id="@+id/textViewDiscountTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Discount available"
+                        android:textStyle="bold"
+                        android:textColor="@android:color/white"
+                        android:textSize="18sp"/>
+                    <TextView
+                        android:id="@+id/textViewDiscountPercent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="10% off your next ride"
+                        android:textColor="@android:color/white"
+                        android:textSize="16sp"
+                        android:layout_marginTop="4dp"/>
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/buttonToggleDiscount"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+            android:text="Discount Disabled"
+                        android:textAllCaps="false"
+                        android:layout_marginTop="8dp"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:textColor="@android:color/white"
+                        app:backgroundTint="@color/discount_disabled_bg"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <LinearLayout
                 android:id="@+id/modeSelectionLayout"
@@ -201,6 +284,7 @@
                 android:layout_height="wrap_content"
                 android:text="Confirm Booking"
                 android:layout_marginTop="16dp"/>
+            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -228,6 +312,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/status_header_ride_confirmed"
                 style="?attr/textAppearanceHeadline6"
+                android:textSize="20sp"
+                android:textStyle="bold"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginBottom="8dp"/>
 
@@ -238,6 +324,7 @@
                 android:layout_height="wrap_content"
                 android:text="Fare: ₱0.00"
                 android:textStyle="bold"
+                android:textSize="22sp"
                 android:visibility="gone"
                 android:layout_marginBottom="4dp"/>
 
@@ -263,6 +350,8 @@
                 android:layout_height="wrap_content"
                 android:text="Driver: Loading..."
                 style="?attr/textAppearanceBody1"
+                android:textSize="16sp"
+                android:textStyle="bold"
                 android:layout_marginBottom="4dp"/>
 
             <TextView
@@ -271,6 +360,8 @@
                 android:layout_height="wrap_content"
                 android:text="Phone: Loading..."
                 style="?attr/textAppearanceBody1"
+                android:textSize="14sp"
+                android:textColor="#555555"
                 android:layout_marginBottom="4dp"/>
 
             <TextView
@@ -279,6 +370,7 @@
                 android:layout_height="wrap_content"
                 android:text="Vehicle: Loading..."
                 style="?attr/textAppearanceBody1"
+                android:textSize="14sp"
                 android:layout_marginBottom="8dp"/>
 
             <ImageView
@@ -318,12 +410,14 @@
                     style="?attr/textAppearanceBody2"/>
             </LinearLayout>
             
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonViewAllDriverReviews"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="View all driver reviews"
-                android:layout_marginTop="8dp"/>
+                android:layout_marginTop="8dp"
+                android:textAllCaps="false"
+                style="@style/Widget.SwiftCab.MaterialButton"/>
             
             <TextView
                 android:id="@+id/textViewTripStatusMessage"
@@ -360,6 +454,15 @@
                 style="?attr/textAppearanceBody2"
                 android:visibility="gone"
                 android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/textViewDiscountApplied"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Discount: - ₱0.00"
+                style="?attr/textAppearanceBody2"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp"/>
 
             <Button
                 android:id="@+id/buttonCancelRideRider"

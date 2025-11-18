@@ -79,6 +79,14 @@
             android:text="Fare: ₱0.00"
             android:visibility="gone" />
 
+        <TextView
+            android:id="@+id/textViewHistoryDiscount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Discount: - ₱0.00"
+            android:visibility="gone" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnRate"
             android:layout_width="wrap_content"

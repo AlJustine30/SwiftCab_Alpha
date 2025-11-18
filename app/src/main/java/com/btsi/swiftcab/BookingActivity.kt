@@ -12,6 +12,7 @@ import android.content.Context
 import android.view.View
 import android.view.Gravity
 import android.widget.Toast
+import android.content.res.ColorStateList
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -36,6 +37,10 @@ import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.api.model.TypeFilter
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
+import com.google.android.libraries.places.widget.Autocomplete
+import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
@@ -46,6 +51,7 @@ import androidx.appcompat.app.AlertDialog
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RatingBar
+import android.widget.TextView
 import android.content.Intent
 import com.bumptech.glide.Glide
 import com.google.android.gms.maps.model.Polyline
@@ -77,6 +83,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentPolyline: Polyline? = null
     private var driverMarker: Marker? = null
 
+    private lateinit var pickupSearchLauncher: ActivityResultLauncher<Intent>
+    private lateinit var dropoffSearchLauncher: ActivityResultLauncher<Intent>
+
     private var tripTimerHandler: android.os.Handler? = null
     private var tripTimerRunnable: Runnable? = null
 
@@ -88,6 +97,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private enum class SelectionMode { NONE, PICKUP, DROPOFF }
     private var selectionMode: SelectionMode = SelectionMode.NONE
+
+    // Discount selection state
+    private var availableDiscountPercent: Int = 0
+    private var applyDiscount: Boolean = false
+    private var farePopupShown: Boolean = false
+    // (Reverted) No multiple discount options list
+    private var isPanelCollapsed: Boolean = false
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
@@ -116,7 +132,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         val dest = destinationLatLng
         if (pickup != null && dest != null) {
             val distanceKm = calculateDistanceKm(pickup, dest)
-            val estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+            var estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+            if (applyDiscount && availableDiscountPercent > 0) {
+                val factor = 1.0 - (availableDiscountPercent / 100.0)
+                estimatedFare *= factor
+            }
             binding.textViewEstimatedFare.text = String.format(java.util.Locale.getDefault(), "Estimated Fare: ₱%.2f", estimatedFare)
         }
     }
@@ -149,13 +169,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         if (playServicesAvailable) {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         } else {
-            // Remove Places autocomplete fragments that rely on Google Play services
-            supportFragmentManager.findFragmentById(R.id.pickup_autocomplete_fragment)?.let {
-                supportFragmentManager.beginTransaction().remove(it).commit()
-            }
-            supportFragmentManager.findFragmentById(R.id.destination_autocomplete_fragment)?.let {
-                supportFragmentManager.beginTransaction().remove(it).commit()
-            }
             // Hide current location shortcuts when Play services are unavailable
             binding.buttonCurrentLocationPickup.visibility = View.GONE
             binding.buttonCurrentLocationDropoff.visibility = View.GONE
@@ -174,13 +187,23 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.noDriversLayout.visibility = View.GONE
             viewModel.clearBookingState()
         }
-        setupPlaceAutocomplete()
+        setupPlaceSearchButtons()
         observeViewModel()
         // Attempt to resume any active booking for this rider
         viewModel.resumeActiveBookingIfAny()
     }
 
     private fun setupUI() {
+        // Minimize/expand the booking panel to reveal more of the map
+        binding.buttonTogglePanel.setOnClickListener {
+            isPanelCollapsed = !isPanelCollapsed
+            binding.bookingPanelContent.visibility = if (isPanelCollapsed) View.GONE else View.VISIBLE
+            binding.buttonTogglePanel.setImageResource(
+                if (isPanelCollapsed) android.R.drawable.arrow_up_float else android.R.drawable.arrow_down_float
+            )
+            binding.buttonTogglePanel.contentDescription = if (isPanelCollapsed) "Expand panel" else "Collapse panel"
+        }
+
         binding.buttonConfirmBooking.setOnClickListener {
             createBookingRequest()
         }
@@ -224,68 +247,61 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    private fun setupPlaceAutocomplete() {
+    private fun setupPlaceSearchButtons() {
         if (!playServicesAvailable) return
-        val pickupFragment = supportFragmentManager.findFragmentById(R.id.pickup_autocomplete_fragment) as? AutocompleteSupportFragment
-        val destinationFragment = supportFragmentManager.findFragmentById(R.id.destination_autocomplete_fragment) as? AutocompleteSupportFragment
 
-        val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
-        pickupFragment?.setPlaceFields(placeFields)
-        destinationFragment?.setPlaceFields(placeFields)
+        val placeFields = listOf(
+            Place.Field.ID,
+            Place.Field.NAME,
+            Place.Field.ADDRESS,
+            Place.Field.LAT_LNG
+        )
 
-        // Suggest addresses by default to make selection practical
-        pickupFragment?.setTypeFilter(TypeFilter.ADDRESS)
-        destinationFragment?.setTypeFilter(TypeFilter.ADDRESS)
-
-        // Improve IME focus reliability for embedded Autocomplete fragments
-        val pickupSearch = pickupFragment?.view?.findViewById<EditText>(com.google.android.libraries.places.R.id.places_autocomplete_search_bar)
-        val destinationSearch = destinationFragment?.view?.findViewById<EditText>(com.google.android.libraries.places.R.id.places_autocomplete_search_bar)
-
-        fun showImeFor(view: View?) {
-            if (view == null) return
-            view.post {
-                view.requestFocus()
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
-            }
-        }
-
-        pickupSearch?.setOnClickListener { showImeFor(it) }
-        pickupSearch?.setOnFocusChangeListener { v, hasFocus -> if (hasFocus) showImeFor(v) }
-        destinationSearch?.setOnClickListener { showImeFor(it) }
-        destinationSearch?.setOnFocusChangeListener { v, hasFocus -> if (hasFocus) showImeFor(v) }
-
-        pickupFragment?.setOnPlaceSelectedListener(object : PlaceSelectionListener {
-            override fun onPlaceSelected(place: Place) {
+        pickupSearchLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val place = Autocomplete.getPlaceFromIntent(result.data!!)
                 place.latLng?.let { latLng ->
                     pickupLocationLatLng = latLng
                     binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
                     setPickupMarker(latLng)
                     selectionMode = SelectionMode.NONE
-                    pickupSearch?.clearFocus()
                     updateEstimatedFareIfReady()
                 }
+            } else if (result.data != null) {
+                val status = Autocomplete.getStatusFromIntent(result.data!!)
+                Toast.makeText(this, "Pickup selection error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
             }
-            override fun onError(status: Status) {
-                Toast.makeText(this@BookingActivity, "Pickup selection error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        }
 
-        destinationFragment?.setOnPlaceSelectedListener(object : PlaceSelectionListener {
-            override fun onPlaceSelected(place: Place) {
+        dropoffSearchLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val place = Autocomplete.getPlaceFromIntent(result.data!!)
                 place.latLng?.let { latLng ->
                     destinationLatLng = latLng
                     binding.destinationEditText.setText(place.address ?: place.name ?: "")
                     setDestinationMarker(latLng)
                     selectionMode = SelectionMode.NONE
-                    destinationSearch?.clearFocus()
                     updateEstimatedFareIfReady()
                 }
+            } else if (result.data != null) {
+                val status = Autocomplete.getStatusFromIntent(result.data!!)
+                Toast.makeText(this, "Drop-off selection error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
             }
-            override fun onError(status: Status) {
-                Toast.makeText(this@BookingActivity, "Drop-off selection error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        }
+
+        binding.buttonPickupSearch.setOnClickListener {
+            val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
+                .setTypeFilter(TypeFilter.ADDRESS)
+                .build(this)
+            pickupSearchLauncher.launch(intent)
+        }
+
+        binding.buttonDestinationSearch.setOnClickListener {
+            val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
+                .setTypeFilter(TypeFilter.ADDRESS)
+                .build(this)
+            dropoffSearchLauncher.launch(intent)
+        }
     }
 
     private fun setCurrentLocationAs(isPickup: Boolean) {
@@ -561,16 +577,34 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.textViewDuration.visibility = View.VISIBLE
                     binding.textViewFareBreakdown.visibility = View.VISIBLE
 
+                    val beforeDiscountTotal = base + (km * perKm) + (minutes * perMin)
+                    val discountAmount = (beforeDiscountTotal - total).coerceAtLeast(0.0)
+
                     binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", total)
                     binding.textViewDuration.text = String.format("Duration: %d min", minutes)
                     binding.textViewFareBreakdown.text = String.format(
                         "Breakdown: Base ₱%.2f + %.2f km × ₱%.2f + %d min × ₱%.2f = ₱%.2f",
-                        base, km, perKm, minutes, perMin, total
+                        base, km, perKm, minutes, perMin, beforeDiscountTotal
                     )
+                    if (discountAmount > 0.0) {
+                        binding.textViewDiscountApplied.visibility = View.VISIBLE
+                        binding.textViewDiscountApplied.text = String.format("Discount: - ₱%.2f", discountAmount)
+                    } else {
+                        binding.textViewDiscountApplied.visibility = View.GONE
+                    }
 
                     clearDriverMarker()
                     clearRoute()
                     showRiderRatingDialog(state.bookingId, state.driverId)
+
+                    // Centered fare popup once when trip is completed
+                    if (!farePopupShown) {
+                        val totalFare = state.finalFare ?: 0.0
+                        val beforeDiscountTotal = base + (km * perKm) + (minutes * perMin)
+                        val discountAmount = (beforeDiscountTotal - totalFare).coerceAtLeast(0.0)
+                        showRiderFarePopup(totalFare, beforeDiscountTotal, discountAmount, minutes)
+                        farePopupShown = true
+                    }
                 }
                 is BookingUiState.AwaitingPayment -> {
                     stopTripTimer()
@@ -592,16 +626,34 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.textViewDuration.visibility = View.VISIBLE
                     binding.textViewFareBreakdown.visibility = View.VISIBLE
 
+                    val beforeDiscountTotal = base + (km * perKm) + (minutes * perMin)
+                    val discountAmount = (beforeDiscountTotal - total).coerceAtLeast(0.0)
+
                     binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", total)
                     binding.textViewDuration.text = String.format("Duration: %d min", minutes)
                     binding.textViewFareBreakdown.text = String.format(
                         "Breakdown: Base ₱%.2f + %.2f km × ₱%.2f + %d min × ₱%.2f = ₱%.2f",
-                        base, km, perKm, minutes, perMin, total
+                        base, km, perKm, minutes, perMin, beforeDiscountTotal
                     )
+                    if (discountAmount > 0.0) {
+                        binding.textViewDiscountApplied.visibility = View.VISIBLE
+                        binding.textViewDiscountApplied.text = String.format("Discount: - ₱%.2f", discountAmount)
+                    } else {
+                        binding.textViewDiscountApplied.visibility = View.GONE
+                    }
 
                     clearDriverMarker()
                     clearRoute()
                     // Do NOT show review until payment is confirmed
+
+                    // Centered fare popup once when awaiting payment
+                    if (!farePopupShown) {
+                        val totalFare = state.finalFare ?: 0.0
+                        val beforeDiscountTotal2 = base + (km * perKm) + (minutes * perMin)
+                        val discountAmount2 = (beforeDiscountTotal2 - totalFare).coerceAtLeast(0.0)
+                        showRiderFarePopup(totalFare, beforeDiscountTotal2, discountAmount2, minutes)
+                        farePopupShown = true
+                    }
                 }
                 is BookingUiState.Canceled -> {
                     binding.infoCardView.visibility = View.VISIBLE
@@ -616,6 +668,33 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     Toast.makeText(this, state.message, Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    private fun showRiderFarePopup(totalFare: Double, subtotal: Double, discount: Double, minutes: Int) {
+        try {
+            val view = layoutInflater.inflate(R.layout.dialog_fare_summary_rider, null)
+            val fareView = view.findViewById<TextView>(R.id.textFareAmount)
+            val discountView = view.findViewById<TextView>(R.id.textDiscount)
+            val durationView = view.findViewById<TextView>(R.id.textDuration)
+
+            fareView.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", totalFare)
+            discountView.visibility = View.VISIBLE
+            if (discount > 0.0) {
+                discountView.text = String.format(java.util.Locale.getDefault(), "Discount: - ₱%.2f", discount)
+            } else {
+                discountView.text = String.format(java.util.Locale.getDefault(), "Discount: ₱%.2f", 0.0)
+            }
+            durationView.text = String.format(java.util.Locale.getDefault(), "Duration: %d min", minutes)
+
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(view)
+                .setCancelable(true)
+                .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+                .create()
+            dlg.show()
+        } catch (e: Exception) {
+            android.util.Log.e("BookingActivity", "Failed to show rider fare popup", e)
         }
     }
 
@@ -779,8 +858,19 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.textViewTimeFee.visibility = View.VISIBLE
                 binding.textViewTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMinuteRate, minutes, seconds, timeFee)
 
-                // Compute and show running total fare
-                val totalFare = initialFee + (kmFee ?: 0.0) + timeFee
+                // Compute and show running total fare, applying discount if chosen
+                val totalBeforeDiscount = initialFee + (kmFee ?: 0.0) + timeFee
+                val discountPercent = if (applyDiscount && availableDiscountPercent > 0) availableDiscountPercent else 0
+                val discountAmount = if (discountPercent > 0) totalBeforeDiscount * (discountPercent / 100.0) else 0.0
+                val totalFare = totalBeforeDiscount - discountAmount
+
+                if (discountPercent > 0) {
+                    binding.textViewDiscountApplied.visibility = View.VISIBLE
+                    binding.textViewDiscountApplied.text = String.format("Discount (%d%%): - ₱%.2f", discountPercent, discountAmount)
+                } else {
+                    binding.textViewDiscountApplied.visibility = View.GONE
+                }
+
                 binding.textViewFinalFare.visibility = View.VISIBLE
                 binding.textViewFinalFare.text = String.format("Fare: ₱%.2f", totalFare)
 
@@ -833,22 +923,36 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updateDiscountIndicator() {
         val uid = auth.currentUser?.uid
         if (uid == null) {
-            binding.textViewDiscountApplied.visibility = View.GONE
+            binding.discountCard.visibility = View.GONE
             return
         }
         firestore.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 val percent = (doc.getLong("nextBookingDiscountPercent") ?: 0L).toInt()
+                availableDiscountPercent = percent
                 if (percent > 0) {
-                    binding.textViewDiscountApplied.visibility = View.VISIBLE
-                    binding.textViewDiscountApplied.text = "Discount applied: ${percent}%"
+                    binding.discountCard.visibility = View.VISIBLE
+                    binding.textViewDiscountPercent.text = "$percent% off your next ride"
+            binding.buttonToggleDiscount.text = if (applyDiscount) "Discount Active" else "Discount Disabled"
+                    val enabledColor = ContextCompat.getColor(this, R.color.discount_enabled_bg)
+                    val disabledColor = ContextCompat.getColor(this, R.color.discount_disabled_bg)
+                    binding.buttonToggleDiscount.backgroundTintList = ColorStateList.valueOf(if (applyDiscount) enabledColor else disabledColor)
+            binding.buttonToggleDiscount.contentDescription = if (applyDiscount) "Discount active" else "Discount disabled"
+                    binding.buttonToggleDiscount.setOnClickListener {
+                        applyDiscount = !applyDiscount
+        binding.buttonToggleDiscount.text = if (applyDiscount) "Discount Active" else "Discount Disabled"
+                        binding.buttonToggleDiscount.backgroundTintList = ColorStateList.valueOf(if (applyDiscount) enabledColor else disabledColor)
+        binding.buttonToggleDiscount.contentDescription = if (applyDiscount) "Discount active" else "Discount disabled"
+                        updateEstimatedFareIfReady()
+                    }
                 } else {
-                    binding.textViewDiscountApplied.visibility = View.GONE
+                    applyDiscount = false
+                    binding.discountCard.visibility = View.GONE
                 }
             }
             .addOnFailureListener {
                 // On failure, hide to avoid stale/incorrect info
-                binding.textViewDiscountApplied.visibility = View.GONE
+                binding.discountCard.visibility = View.GONE
             }
     }
 
@@ -875,7 +979,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             pickupLatLng = pickup,
             destinationLatLng = dropoff,
             pickupAddress = pickupAddress,
-            destinationAddress = destinationAddress
+            destinationAddress = destinationAddress,
+            applyDiscount = applyDiscount,
+            availableDiscountPercent = availableDiscountPercent
         )
     }
 
@@ -928,8 +1034,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         firestore.collection("ratings").add(ratingData)
             .addOnSuccessListener {
+                val riderId = uid
                 firestore.collection("bookinghistory").document(bookingId)
-                    .update("riderRated", true)
+                    .set(mapOf("riderRated" to true, "riderId" to riderId), com.google.firebase.firestore.SetOptions.merge())
                     .addOnFailureListener { e ->
                         Toast.makeText(this, "Failed to mark trip as rated: ${e.message}", Toast.LENGTH_SHORT).show()
                     }

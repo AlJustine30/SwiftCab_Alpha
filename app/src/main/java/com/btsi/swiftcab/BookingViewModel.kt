@@ -10,7 +10,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FieldValue
+// (Reverted) No FieldValue import needed
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -125,7 +125,9 @@ class BookingViewModel(
         pickupLatLng: LatLng,
         destinationLatLng: LatLng,
         pickupAddress: String,
-        destinationAddress: String
+        destinationAddress: String,
+        applyDiscount: Boolean,
+        availableDiscountPercent: Int
     ) {
         val riderId = auth.currentUser?.uid
         if (riderId == null) {
@@ -174,11 +176,9 @@ class BookingViewModel(
 
                         val distanceKm = calculateDistanceKm(pickupLatLng, destinationLatLng)
                         var estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
-
-                        // Apply next-booking discount if present
-                        val discountPercent = (doc.getLong("nextBookingDiscountPercent") ?: 0L).toInt()
-                        if (discountPercent > 0) {
-                            val discountFactor = 1.0 - (discountPercent / 100.0)
+                        val appliedDiscount = if (applyDiscount && availableDiscountPercent > 0) availableDiscountPercent else null
+                        if (appliedDiscount != null) {
+                            val discountFactor = 1.0 - (appliedDiscount / 100.0)
                             estimatedFare *= discountFactor
                         }
 
@@ -199,12 +199,13 @@ class BookingViewModel(
                             distanceKm = distanceKm,
                             fareBase = BASE_FARE,
                             perKmRate = PER_KM_RATE,
-                            perMinuteRate = PER_MIN_RATE
+                            perMinuteRate = PER_MIN_RATE,
+                            appliedDiscountPercent = appliedDiscount
                         )
                         bookingRequestsRef.child(bookingId).setValue(bookingRequest)
                             .addOnSuccessListener {
-                                // Consume the pending discount so it applies only once
-                                if (discountPercent > 0) {
+                                // Consume the pending discount only if rider chose to use it
+                                if (appliedDiscount != null) {
                                     firestore.collection("users").document(riderId)
                                         .update(mapOf("nextBookingDiscountPercent" to 0))
                                 }
@@ -582,7 +583,9 @@ class BookingViewModelLegacy(
         pickupLatLng: LatLng,
         destinationLatLng: LatLng,
         pickupAddress: String,
-        destinationAddress: String
+        destinationAddress: String,
+        applyDiscount: Boolean,
+        availableDiscountPercent: Int
     ) {
         val riderId = auth.currentUser?.uid
         if (riderId == null) {
@@ -612,6 +615,7 @@ class BookingViewModelLegacy(
                 if (existingActiveBookingId != null) {
                     _uiState.postValue(BookingUiState.FindingDriver("Resuming your active booking..."))
                     listenForBookingStatus(existingActiveBookingId!!)
+                    return@addOnSuccessListener
                 }
             }
             .addOnFailureListener {

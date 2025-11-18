@@ -166,7 +166,7 @@ class BookingHistoryActivity : AppCompatActivity() {
             .addOnSuccessListener {
                 booking.bookingId?.let { id ->
                     firestore.collection("bookinghistory").document(id)
-                        .update("riderRated", true)
+                        .set(mapOf("riderRated" to true, "riderId" to uid), com.google.firebase.firestore.SetOptions.merge())
                         .addOnFailureListener { e ->
                             Toast.makeText(this, "Failed to mark trip as rated: ${e.message}", Toast.LENGTH_SHORT).show()
                         }

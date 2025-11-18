@@ -80,6 +80,18 @@ service cloud.firestore {
         resource.data.driverId == request.auth.uid ||
         resource.data.riderId == request.auth.uid
       );
+
+      // Allow rider to create a stub doc to mark rating, using merge
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['riderRated','riderId'])
+        && request.resource.data.riderId == request.auth.uid
+        && request.resource.data.riderRated is bool;
+
+      // Allow a rider to mark their trip as rated; restrict to riderRated field only
+      allow update: if isSignedIn()
+        && resource.data.riderId == request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['riderRated'])
+        && request.resource.data.riderRated is bool;
     }
 
     // Reports: passengers can create, read their own; Admin can list/read all

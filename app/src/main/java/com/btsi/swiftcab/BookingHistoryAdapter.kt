@@ -40,6 +40,7 @@ class BookingHistoryAdapter(
         private val textViewStatus: TextView = itemView.findViewById(R.id.textViewHistoryStatus)
         private val ratingBarHistory: RatingBar = itemView.findViewById(R.id.ratingBarHistory)
         private val textViewPrice: TextView = itemView.findViewById(R.id.textViewHistoryPrice)
+        private val textViewDiscount: TextView = itemView.findViewById(R.id.textViewHistoryDiscount)
         private val btnRate: Button = itemView.findViewById(R.id.btnRate)
         private val btnReport: Button = itemView.findViewById(R.id.btnReport)
 
@@ -73,6 +74,36 @@ class BookingHistoryAdapter(
                 textViewPrice.text = context.getString(R.string.fare_label, amount)
             } else {
                 textViewPrice.visibility = View.GONE
+            }
+
+            // Show discount if applied
+            val discountPercent = booking.appliedDiscountPercent ?: 0
+            if (discountPercent > 0) {
+                // Try to compute amount; fall back to percent if insufficient data
+                val base = booking.fareBase
+                val perKm = booking.perKmRate
+                val km = booking.distanceKm
+                val perMin = booking.perMinuteRate
+                val minutes = booking.durationMinutes
+
+                val subtotal = if (base != null && perKm != null && km != null && perMin != null && minutes != null) {
+                    base + (perKm * km) + (perMin * minutes)
+                } else null
+
+                val discountAmount = when {
+                    subtotal != null && booking.finalFare != null -> (subtotal - booking.finalFare!!).coerceAtLeast(0.0)
+                    subtotal != null -> (subtotal * (discountPercent / 100.0))
+                    else -> null
+                }
+
+                textViewDiscount.visibility = View.VISIBLE
+                textViewDiscount.text = if (discountAmount != null && discountAmount > 0.0) {
+                    String.format(java.util.Locale.getDefault(), "Discount: - ₱%.2f (%d%%)", discountAmount, discountPercent)
+                } else {
+                    String.format(java.util.Locale.getDefault(), "Discount Applied: %d%%", discountPercent)
+                }
+            } else {
+                textViewDiscount.visibility = View.GONE
             }
 
             val rating = booking.riderRating

@@ -247,6 +247,15 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
+                    <TextView
+                        android:id="@+id/textViewTripDetailsHeader"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Trip details"
+                        android:textStyle="bold"
+                        android:textSize="18sp"
+                        android:layout_marginBottom="8dp"/>
+
                     <ImageView
                         android:id="@+id/imageViewPassengerProfileTrip"
                         android:layout_width="48dp"
@@ -259,28 +268,34 @@
                         android:id="@+id/passenger_name_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Passenger: " />
+                        android:text="Passenger: "
+                        android:textStyle="bold"
+                        android:textSize="16sp"/>
 
                     <TextView
                         android:id="@+id/passenger_phone_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Phone: " />
+                        android:text="Phone: "
+                        android:textSize="14sp"
+                        android:textColor="#555555"/>
 
                     <TextView
                         android:id="@+id/pickup_address_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Pickup: " />
+                        android:text="Pickup: "
+                        android:textSize="14sp"/>
 
                     <TextView
                         android:id="@+id/dropoff_address_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="Dropoff: " />
+                        android:text="Dropoff: "
+                        android:textSize="14sp"/>
 
                     <TextView
                         android:id="@+id/textViewDriverInitialFee"
@@ -306,29 +321,43 @@
                         android:text="Km fee (₱13.5/km): 0.00 km | ₱0.00"
                         android:visibility="gone" />
 
-                    <Button
-                        android:id="@+id/trip_action_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="Start Trip" />
-
-                    <!-- Final fare and payment confirmation shown after completion -->
+                    <!-- Final fare and discount shown directly below trip details -->
                     <TextView
                         android:id="@+id/textViewDriverFinalFare"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="12dp"
                         android:text="Fare: ₱0.00"
+                        android:textStyle="bold"
+                        android:textSize="20sp"
                         android:visibility="gone" />
 
-                    <Button
+                    <TextView
+                        android:id="@+id/textViewDriverDiscountApplied"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Discount: - ₱0.00"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/trip_action_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="Start Trip"
+                        android:textAllCaps="false"
+                        style="@style/Widget.SwiftCab.MaterialButton"/>
+
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/buttonPaymentConfirmed"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="Payment Confirmed"
-                        android:visibility="gone" />
+                        android:visibility="gone"
+                        android:textAllCaps="false"
+                        style="@style/Widget.SwiftCab.MaterialButton"/>
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

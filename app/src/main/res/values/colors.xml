@@ -20,4 +20,8 @@
     <!-- Driver status colors -->
     <color name="driver_online_green">#2E7D32</color>
     <color name="driver_offline_red">#C62828</color>
+    
+    <!-- Discount button states -->
+    <color name="discount_enabled_bg">#2E7D32</color> <!-- Green -->
+    <color name="discount_disabled_bg">#546E7A</color> <!-- Blue Gray -->
 </resources>

@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.RatingBar
 import android.widget.Toast
+import android.widget.TextView
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -50,6 +51,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private var mMap: GoogleMap? = null
     private var currentBooking: BookingRequest? = null
     private var currentPolyline: Polyline? = null
+    private var farePopupShown: Boolean = false
     private var serverTimeOffsetMs: Long = 0L
     private var driverTripTimerHandler: android.os.Handler? = null
     private var driverTripTimerRunnable: Runnable? = null
@@ -372,6 +374,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 if (task.isSuccessful) {
                     Toast.makeText(this, "Booking Accepted!", Toast.LENGTH_SHORT).show()
                     binding.bookingRequestLayout.visibility = View.GONE
+                    farePopupShown = false
                     listenForActiveBooking(bookingId)
                 } else {
                     Log.w(TAG, "acceptBooking:onComplete:failure", task.exception)
@@ -387,7 +390,11 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         activeBookingListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val booking = snapshot.getValue(BookingRequest::class.java)
+                val previousId = currentBooking?.bookingId
                 currentBooking = booking
+                if (booking != null && booking.bookingId != previousId) {
+                    farePopupShown = false
+                }
                 if (booking != null && booking.driverId == auth.currentUser?.uid) {
                     // Backfill driver details if missing to ensure rider sees names
                     val uid = auth.currentUser?.uid ?: return
@@ -472,7 +479,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         } else {
             currentPolyline?.remove()
-        }
+        farePopupShown = false
+    }
 
         // Update action button based on status
         when (booking.status) {
@@ -554,6 +562,11 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                             }
                     }
                 }
+
+                if (!farePopupShown) {
+                    showDriverFarePopup(fare, booking)
+                    farePopupShown = true
+                }
             }
             "COMPLETED" -> {
                 stopDriverTripTimer()
@@ -628,7 +641,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                         val distanceKm = calculateDistanceKm(pickup, drop)
                         val kmFee = distanceKm * PER_KM_RATE
                         val timeFee = durationMinutes * perMin
-                        val finalFare = base + kmFee + timeFee
+                        val finalBeforeDiscount = base + kmFee + timeFee
+                        val discountPercent = b.appliedDiscountPercent ?: 0
+                        val finalFare = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
                         val updates: Map<String, Any> = mapOf(
                             "durationMinutes" to durationMinutes,
                             "finalFare" to finalFare
@@ -680,7 +695,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                                 val distanceKm = calculateDistanceKm(pickup, drop)
                                 val kmFee = distanceKm * PER_KM_RATE
                                 val timeFee = durationMinutes * perMin
-                                val finalFare = base + kmFee + timeFee
+                                val finalBeforeDiscount = base + kmFee + timeFee
+                                val discountPercent = b.appliedDiscountPercent ?: 0
+                                val finalFare = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
                                 val updates: Map<String, Any> = mapOf(
                                     "durationMinutes" to durationMinutes,
                                     "finalFare" to finalFare
@@ -704,6 +721,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.bookingRequestLayout.visibility = View.GONE // Hide booking request as well
         mMap?.clear()
         currentPolyline?.remove()
+        farePopupShown = false
     }
 
     private fun showActiveTripView() {
@@ -1002,6 +1020,62 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    private fun showDriverFarePopup(totalFare: Double, booking: BookingRequest?) {
+        try {
+            val view = layoutInflater.inflate(R.layout.dialog_fare_summary_driver, null)
+            val fareView = view.findViewById<TextView>(R.id.textFareAmount)
+            val discountView = view.findViewById<TextView>(R.id.textDiscount)
+            val durationView = view.findViewById<TextView>(R.id.textDuration)
+
+            // Compute breakdown from booking data
+            val base = booking?.fareBase ?: 50.0
+            val perMin = booking?.perMinuteRate ?: 2.0
+            val minutes = booking?.durationMinutes ?: 0
+            val km = booking?.distanceKm ?: run {
+                val pickup = LatLng(booking?.pickupLatitude ?: 0.0, booking?.pickupLongitude ?: 0.0)
+                val drop = LatLng(booking?.destinationLatitude ?: 0.0, booking?.destinationLongitude ?: 0.0)
+                calculateDistanceKm(pickup, drop)
+            }
+            val subtotal = base + (km * PER_KM_RATE) + (minutes * perMin)
+            val discount = (subtotal - totalFare).coerceAtLeast(0.0)
+
+            fareView.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", totalFare)
+            discountView.visibility = View.VISIBLE
+            if (discount > 0.0) {
+                discountView.text = String.format(java.util.Locale.getDefault(), "Discount: - ₱%.2f", discount)
+            } else {
+                discountView.text = String.format(java.util.Locale.getDefault(), "Discount: ₱%.2f", 0.0)
+            }
+            durationView.text = String.format(java.util.Locale.getDefault(), "Duration: %d min", minutes)
+
+            val bId = booking?.bookingId
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(view)
+                .setCancelable(true)
+                .setPositiveButton(getString(R.string.payment_confirmed)) { dialog, _ ->
+                    if (!bId.isNullOrBlank()) {
+                        functions.getHttpsCallable("updateTripStatus")
+                            .call(mapOf("bookingId" to bId, "newStatus" to "COMPLETED", "driverId" to auth.currentUser?.uid))
+                            .addOnSuccessListener { dialog.dismiss() }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Popup COMPLETED update failed", e)
+                                val bookingRef = db.getReference("bookingRequests").child(bId)
+                                bookingRef.child("status").setValue("COMPLETED")
+                                    .addOnSuccessListener { dialog.dismiss() }
+                                    .addOnFailureListener { err -> Log.e(TAG, "Popup fallback COMPLETED update failed", err) }
+                            }
+                    } else {
+                        dialog.dismiss()
+                    }
+                }
+                .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+                .create()
+            dlg.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show driver fare popup", e)
+        }
+    }
+
     private fun startDriverTripTimer(startMs: Long, perMin: Double, base: Double, perKm: Double, distanceKm: Double) {
         stopDriverTripTimer()
         val handler = android.os.Handler(mainLooper)
@@ -1029,7 +1103,18 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.textViewDriverTimeFee.visibility = View.VISIBLE
                 binding.textViewDriverTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMin, minutes, seconds, timeFee)
     
-                val finalFare = base + kmFee + timeFee
+                val finalBeforeDiscount = base + kmFee + timeFee
+                val discountPercent = currentBooking?.appliedDiscountPercent ?: 0
+                val discountAmount = if (discountPercent > 0) finalBeforeDiscount * (discountPercent / 100.0) else 0.0
+                val finalFare = finalBeforeDiscount - discountAmount
+
+                if (discountPercent > 0) {
+                    binding.textViewDriverDiscountApplied.visibility = View.VISIBLE
+                    binding.textViewDriverDiscountApplied.text = String.format("Discount (%d%%): - ₱%.2f", discountPercent, discountAmount)
+                } else {
+                    binding.textViewDriverDiscountApplied.visibility = View.GONE
+                }
+
                 binding.textViewDriverFinalFare.visibility = View.VISIBLE
                 binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", finalFare)
     

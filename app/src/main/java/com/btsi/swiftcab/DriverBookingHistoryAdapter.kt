@@ -23,6 +23,7 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         val statusTextView: TextView = view.findViewById(R.id.textViewDriverHistoryStatus)
         val ratingBar: RatingBar = view.findViewById(R.id.ratingBarDriverHistory)
         val priceTextView: TextView = view.findViewById(R.id.textViewDriverHistoryPrice)
+        val discountTextView: TextView = view.findViewById(R.id.textViewDriverHistoryDiscount)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -46,6 +47,35 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
             holder.priceTextView.text = holder.itemView.context.getString(R.string.fare_label, amount)
         } else {
             holder.priceTextView.visibility = View.GONE
+        }
+
+        // Show discount if applied
+        val discountPercent = booking.appliedDiscountPercent ?: 0
+        if (discountPercent > 0) {
+            val base = booking.fareBase
+            val perKm = booking.perKmRate
+            val km = booking.distanceKm
+            val perMin = booking.perMinuteRate
+            val minutes = booking.durationMinutes
+
+            val subtotal = if (base != null && perKm != null && km != null && perMin != null && minutes != null) {
+                base + (perKm * km) + (perMin * minutes)
+            } else null
+
+            val discountAmount = when {
+                subtotal != null && amount != null -> (subtotal - amount).coerceAtLeast(0.0)
+                subtotal != null -> (subtotal * (discountPercent / 100.0))
+                else -> null
+            }
+
+            holder.discountTextView.visibility = View.VISIBLE
+            holder.discountTextView.text = if (discountAmount != null && discountAmount > 0.0) {
+                String.format(java.util.Locale.getDefault(), "Discount: - ₱%.2f (%d%%)", discountAmount, discountPercent)
+            } else {
+                String.format(java.util.Locale.getDefault(), "Discount Applied: %d%%", discountPercent)
+            }
+        } else {
+            holder.discountTextView.visibility = View.GONE
         }
 
         val rating = booking.riderRating
