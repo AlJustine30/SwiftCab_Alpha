@@ -28,6 +28,12 @@ class BookingHistoryActivity : AppCompatActivity() {
     private lateinit var firestore: FirebaseFirestore
     private lateinit var textViewNoHistory: TextView
 
+    /**
+     * Initializes the booking history screen, toolbar, adapters, and Firebase instances.
+     * Also triggers the initial fetch of the rider's booking history.
+     *
+     * @param savedInstanceState previously saved instance state, or null
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_booking_history)
@@ -63,6 +69,12 @@ class BookingHistoryActivity : AppCompatActivity() {
         fetchRiderBookingHistory()
     }
 
+    /**
+     * Displays a dialog for the rider to report an issue related to a booking.
+     * Collects category and message, then submits the report.
+     *
+     * @param booking the booking to report an issue about
+     */
     private fun showReportDialog(booking: BookingRequest) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_issue_report, null)
         val etCategory = dialogView.findViewById<EditText>(R.id.editTextIssueCategory)
@@ -88,6 +100,14 @@ class BookingHistoryActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /**
+     * Submits an issue report to Firestore for the given booking.
+     * Requires that the rider is logged in.
+     *
+     * @param booking the booking being reported
+     * @param category optional category describing the issue
+     * @param message description of the issue
+     */
     private fun submitIssueReport(booking: BookingRequest, category: String, message: String) {
         val uid = auth.currentUser?.uid
         if (uid.isNullOrEmpty()) {
@@ -113,6 +133,12 @@ class BookingHistoryActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Shows a dialog allowing the rider to rate the driver for a completed trip.
+     * Captures rating value, optional comments, and whether the rating is anonymous.
+     *
+     * @param booking the booking to rate
+     */
     private fun showRatingDialog(booking: BookingRequest) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
@@ -140,6 +166,15 @@ class BookingHistoryActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /**
+     * Persists a rating to Firestore and marks the trip as rated in booking history.
+     * Refreshes the booking list upon success.
+     *
+     * @param booking the booking being rated
+     * @param rating the rating value (0.0–5.0)
+     * @param comments optional comments from the rider
+     * @param anonymous whether the rating should hide the rater's identity
+     */
     private fun saveRating(booking: BookingRequest, rating: Float, comments: String, anonymous: Boolean) {
         val uid = auth.currentUser?.uid
         if (uid.isNullOrEmpty()) {
@@ -179,6 +214,10 @@ class BookingHistoryActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Loads the current rider's booking history from Firestore ordered by most recent.
+     * Updates the adapter, UI state, and then attempts to load ratings for completed trips.
+     */
     private fun fetchRiderBookingHistory() {
         val currentUser = auth.currentUser
         if (currentUser == null) {
@@ -218,6 +257,9 @@ class BookingHistoryActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Updates visibility of list and empty-state text based on whether history exists.
+     */
     private fun updateUiBasedOnHistory() {
         if (bookingHistoryList.isEmpty()) {
             textViewNoHistory.visibility = android.view.View.VISIBLE
@@ -228,6 +270,11 @@ class BookingHistoryActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Fetches and binds rider ratings for completed and marked-as-rated trips in the list.
+     *
+     * @param riderId the current rider's user ID
+     */
     private fun loadRatingsForHistory(riderId: String) {
         val itemsNeedingRatings = bookingHistoryList.filter { it.bookingId != null && it.riderRated && it.status == "COMPLETED" }
         if (itemsNeedingRatings.isEmpty()) return
@@ -251,16 +298,34 @@ class BookingHistoryActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Handles toolbar up navigation by finishing this activity.
+     *
+     * @return true when navigation is handled
+     */
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
     }
 
+    /**
+     * Inflates the booking history options menu.
+     *
+     * @param menu the options menu to inflate
+     * @return true when the menu is created
+     */
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_booking_history, menu)
         return true
     }
 
+    /**
+     * Handles action bar item clicks from the booking history screen.
+     * Navigates to My Reports when selected.
+     *
+     * @param item the selected menu item
+     * @return true if the item was handled, otherwise delegates to super
+     */
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_my_reports -> {

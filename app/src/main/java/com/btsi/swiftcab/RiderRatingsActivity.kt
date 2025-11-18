@@ -17,6 +17,9 @@ class RiderRatingsActivity : AppCompatActivity() {
     private lateinit var firestore: FirebaseFirestore
     private lateinit var adapter: RatingsAdapter
 
+    /**
+     * Initializes bindings, toolbar, adapter, and loads ratings submitted by the rider.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRiderRatingsBinding.inflate(layoutInflater)
@@ -35,6 +38,9 @@ class RiderRatingsActivity : AppCompatActivity() {
         loadMySubmittedRatings()
     }
 
+    /**
+     * Loads all ratings created by the current rider and enriches missing names.
+     */
     private fun loadMySubmittedRatings() {
         val uid = auth.currentUser?.uid
         if (uid.isNullOrEmpty()) {
@@ -74,6 +80,9 @@ class RiderRatingsActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Handles toolbar up navigation.
+     */
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true

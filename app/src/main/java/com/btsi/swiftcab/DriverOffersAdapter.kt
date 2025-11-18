@@ -16,27 +16,42 @@ class DriverOffersAdapter(
     private val onDecline: (BookingRequest) -> Unit
 ) : RecyclerView.Adapter<DriverOffersAdapter.OfferViewHolder>() {
 
+    /**
+     * Updates the driver’s current location and refreshes items for distance display.
+     */
     fun updateDriverLocation(loc: LatLng?) {
         driverLocation = loc
         notifyItemRangeChanged(0, offers.size)
     }
 
+    /**
+     * Replaces the offer list and refreshes the adapter.
+     */
     fun setOffers(newOffers: List<BookingRequest>) {
         offers.clear()
         offers.addAll(newOffers)
         notifyDataSetChanged()
     }
 
+    /**
+     * Inflates an offer item and creates its ViewHolder.
+     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OfferViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_driver_offer, parent, false)
         return OfferViewHolder(view)
     }
 
+    /**
+     * Binds an offer to the ViewHolder including passenger, route, and distance.
+     */
     override fun onBindViewHolder(holder: OfferViewHolder, position: Int) {
         val offer = offers[position]
         holder.bind(offer, driverLocation, onAccept, onDecline)
     }
 
+    /**
+     * Returns the number of available offers.
+     */
     override fun getItemCount(): Int = offers.size
 
     class OfferViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -47,6 +62,14 @@ class DriverOffersAdapter(
         private val btnAccept: Button = itemView.findViewById(R.id.buttonOfferAccept)
         private val btnDecline: Button = itemView.findViewById(R.id.buttonOfferDecline)
 
+        /**
+         * Binds offer information and actions to views, including distance to pickup.
+         *
+         * @param offer the rider booking offer
+         * @param driverLoc current driver location for distance calculation
+         * @param onAccept callback when the driver accepts
+         * @param onDecline callback when the driver declines
+         */
         fun bind(
             offer: BookingRequest,
             driverLoc: LatLng?,
@@ -74,6 +97,11 @@ class DriverOffersAdapter(
             btnDecline.setOnClickListener { onDecline(offer) }
         }
 
+        /**
+         * Computes distance between two points using `Location.distanceBetween`.
+         *
+         * @return distance in kilometers
+         */
         private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
             val results = FloatArray(1)
             android.location.Location.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude, results)

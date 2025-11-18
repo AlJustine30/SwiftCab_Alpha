@@ -45,6 +45,10 @@ class DriverMapActivity : AppCompatActivity(), OnMapReadyCallback {
         const val EXTRA_STATUS = "EXTRA_STATUS"
     }
 
+    /**
+     * Sets up view binding, extracts intent extras, and initializes the map.
+     * Also prepares location client for driver my‑location.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDriverMapBinding.inflate(layoutInflater)
@@ -64,6 +68,10 @@ class DriverMapActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment?.getMapAsync(this)
     }
 
+    /**
+     * Receives the GoogleMap instance, enables my‑location when permitted,
+     * places pickup/destination markers, and draws route if en‑route.
+     */
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -107,6 +115,13 @@ class DriverMapActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Fetches directions from Google Directions API, draws a polyline,
+     * and adjusts camera to fit origin and destination.
+     *
+     * @param origin current driver location
+     * @param destination target pickup or drop‑off
+     */
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -135,6 +150,12 @@ class DriverMapActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Decodes an encoded polyline into a list of coordinates.
+     *
+     * @param encoded encoded polyline string
+     * @return list of `LatLng` points
+     */
     private fun decodePolyline(encoded: String): List<LatLng> {
         val poly = ArrayList<LatLng>()
         var index = 0

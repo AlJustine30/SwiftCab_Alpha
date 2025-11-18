@@ -39,6 +39,9 @@ class DriverEarningsActivity : AppCompatActivity() {
     private val currencyFormat: NumberFormat = NumberFormat.getCurrencyInstance(Locale.getDefault())
     private val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
+    /**
+     * Sets up toolbar, adapters, and loads today's earnings by default.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_driver_earnings)
@@ -72,6 +75,9 @@ class DriverEarningsActivity : AppCompatActivity() {
         loadEarningsForDate(today)
     }
 
+    /**
+     * Opens a date picker to select a day for earnings summary.
+     */
     private fun openDatePicker() {
         val cal = Calendar.getInstance()
         DatePickerDialog(
@@ -96,10 +102,16 @@ class DriverEarningsActivity : AppCompatActivity() {
         ).show()
     }
 
+    /**
+     * Updates the selected date label.
+     */
     private fun updateDateLabel(date: Date) {
         textViewSelectedDate.text = "Date: ${dateFormat.format(date)}"
     }
 
+    /**
+     * Loads completed trips for the driver within the chosen day and calculates total.
+     */
     private fun loadEarningsForDate(dayCal: Calendar) {
         val user = auth.currentUser
         if (user == null) {
@@ -166,10 +178,16 @@ class DriverEarningsActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Formats a number into a peso currency string.
+     */
     private fun formatCurrency(amount: Double): String {
         return "\u20B1" + String.format(Locale.getDefault(), "%.2f", amount)
     }
 
+    /**
+     * Toggles a simple loading state for the screen.
+     */
     private fun showLoading(loading: Boolean) {
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         buttonPickDate.isEnabled = !loading

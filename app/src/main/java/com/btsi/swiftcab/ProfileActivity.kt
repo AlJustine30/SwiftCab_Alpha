@@ -46,6 +46,10 @@ class ProfileActivity : AppCompatActivity() {
     private var initialPhone: String = ""
     private var initialImageUrl: String? = null
 
+    /**
+     * Initializes profile UI, loads passenger/driver details, configures image picker,
+     * and sets up change password, save, and logout actions.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_profile)
@@ -222,6 +226,9 @@ class ProfileActivity : AppCompatActivity() {
             finish()
         }
     }
+    /**
+     * Handles toolbar back button to check unsaved changes before leaving.
+     */
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
             handleBackNavigation()
@@ -230,6 +237,9 @@ class ProfileActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
+    /**
+     * Shows a dialog to change password with basic validation.
+     */
     private fun showChangePasswordDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_change_password, null)
         val currentPasswordEditText = dialogView.findViewById<EditText>(R.id.currentPasswordEditText)
@@ -265,6 +275,9 @@ class ProfileActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * Reauthenticates the user and updates the password.
+     */
     private fun reauthenticateAndChangePassword(currentPassword: String, newPassword: String) {
         val user = auth.currentUser
         val credential = EmailAuthProvider.getCredential(user?.email!!, currentPassword)
@@ -284,6 +297,9 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Prompts for password before saving profile changes.
+     */
     private fun showPasswordConfirmDialog(newName: String, newEmail: String, newPhone: String) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_password_confirm, null)
         val passwordEditText = dialogView.findViewById<EditText>(R.id.passwordEditText)
@@ -306,6 +322,9 @@ class ProfileActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * Generic confirmation dialog utility.
+     */
     private fun showConfirmDialog(title: String, message: String, positive: String, onConfirm: () -> Unit) {
         AlertDialog.Builder(this)
             .setTitle(title)
@@ -321,6 +340,9 @@ class ProfileActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * Reauthenticates and saves profile changes, optionally updating email and image.
+     */
     private fun reauthenticateAndSaveChanges(password: String, newName: String, newEmail: String, newPhone: String) {
         val user = auth.currentUser
         val credential = EmailAuthProvider.getCredential(user?.email!!, password)
@@ -346,6 +368,9 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Uploads an image to storage and updates only the profile image URL.
+     */
     private fun uploadImageOnly(imageUri: Uri) {
         val userId = auth.currentUser?.uid ?: return
         val storageRef = storage.reference.child("profile_images/$userId")
@@ -361,6 +386,9 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Uploads an image and updates profile fields in Firestore.
+     */
     private fun uploadImageAndUpdateProfile(imageUri: Uri, newName: String, newEmail: String, newPhone: String) {
         val userId = auth.currentUser?.uid ?: return
         val storageRef = storage.reference.child("profile_images/$userId")
@@ -376,6 +404,9 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Updates the user's profile document and prompts re-login.
+     */
     private fun updateUserProfile(newName: String, newEmail: String, newPhone: String, newImageUrl: String?) {
         val userId = auth.currentUser?.uid!!
         val userUpdates = mutableMapOf<String, Any>(
@@ -411,6 +442,9 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Updates only the user's profile image URL in Firestore.
+     */
     private fun updateUserProfileImageOnly(newImageUrl: String) {
         val userId = auth.currentUser?.uid ?: return
         val updates = mapOf("profileImageUrl" to newImageUrl)
@@ -426,6 +460,9 @@ class ProfileActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Creates a notification channel used for profile update notices.
+     */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Profile Updates"
@@ -440,6 +477,9 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Displays a notification prompting the user to re-login after updates.
+     */
     private fun showReloginNotification() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 

@@ -16,18 +16,29 @@ class DriverEarningsAdapter(
 
     private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
 
+    /**
+     * Replaces the earnings list data and refreshes the adapter.
+     *
+     * @param newItems updated earning items
+     */
     fun setData(newItems: List<BookingRequest>) {
         items.clear()
         items.addAll(newItems)
         notifyDataSetChanged()
     }
 
+    /**
+     * Inflates the driver earning item and creates its ViewHolder.
+     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EarningViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_driver_earning, parent, false)
         return EarningViewHolder(view)
     }
 
+    /**
+     * Binds time, route, and fare values to the earning item views.
+     */
     override fun onBindViewHolder(holder: EarningViewHolder, position: Int) {
         val item = items[position]
         val ts = item.timestamp ?: 0L
@@ -40,6 +51,9 @@ class DriverEarningsAdapter(
         holder.textViewFare.text = String.format(Locale.getDefault(), "\u20B1%.2f", fare)
     }
 
+    /**
+     * Returns the number of earning items.
+     */
     override fun getItemCount(): Int = items.size
 
     class EarningViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {

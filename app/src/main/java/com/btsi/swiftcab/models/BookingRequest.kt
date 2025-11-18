@@ -3,6 +3,11 @@ package com.btsi.swiftcab.models
 import com.google.firebase.database.IgnoreExtraProperties
 
 @IgnoreExtraProperties
+/**
+ * Represents a live booking in Realtime Database, including rider/driver details,
+ * pickup and destination, status lifecycle, and fare breakdown fields used by
+ * both rider and driver flows.
+ */
 data class BookingRequest(
     var bookingId: String? = null,
     val riderId: String? = null,

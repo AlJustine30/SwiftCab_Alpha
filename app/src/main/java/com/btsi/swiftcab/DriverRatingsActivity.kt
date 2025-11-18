@@ -17,6 +17,9 @@ class DriverRatingsActivity : AppCompatActivity() {
     private lateinit var firestore: FirebaseFirestore
     private lateinit var adapter: RatingsAdapter
 
+    /**
+     * Initializes bindings, toolbar, adapter, and loads ratings for target user.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDriverRatingsBinding.inflate(layoutInflater)
@@ -35,6 +38,9 @@ class DriverRatingsActivity : AppCompatActivity() {
         loadRatingsForTarget()
     }
 
+    /**
+     * Loads ratings for the provided `TARGET_USER_ID` or current user and computes average.
+     */
     private fun loadRatingsForTarget() {
         val targetUserId = intent.getStringExtra("TARGET_USER_ID")
         val uidToUse = targetUserId?.takeIf { it.isNotBlank() } ?: auth.currentUser?.uid
@@ -83,6 +89,9 @@ class DriverRatingsActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Handles toolbar up navigation.
+     */
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true

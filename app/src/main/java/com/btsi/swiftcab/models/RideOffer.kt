@@ -3,6 +3,10 @@ package com.btsi.swiftcab.models
 import com.google.firebase.database.IgnoreExtraProperties
 
 @IgnoreExtraProperties
+/**
+ * Represents a one‑tap quick ride offer created by the user from the home screen,
+ * carrying pickup/destination and an optional fare estimate.
+ */
 data class RideOffer(
     val bookingId: String? = null,
     val userId: String? = null,

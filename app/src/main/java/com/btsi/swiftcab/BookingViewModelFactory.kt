@@ -14,6 +14,9 @@ class BookingViewModelFactory(
     private val functions: FirebaseFunctions,
     private val firestore: FirebaseFirestore
 ) : ViewModelProvider.Factory {
+    /**
+     * Provides an instance of `BookingViewModel` with required dependencies.
+     */
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BookingViewModel::class.java)) {
             return BookingViewModel(auth, database, functions, firestore) as T

@@ -19,17 +19,26 @@ class BookingHistoryAdapter(
     private val onReportClick: (BookingRequest) -> Unit
 ) : RecyclerView.Adapter<BookingHistoryAdapter.BookingHistoryViewHolder>() {
 
+    /**
+     * Inflates a booking history list item and creates its ViewHolder.
+     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookingHistoryViewHolder {
         val itemView = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_booking_history, parent, false)
         return BookingHistoryViewHolder(itemView)
     }
 
+    /**
+     * Binds the booking item at the given position to the ViewHolder.
+     */
     override fun onBindViewHolder(holder: BookingHistoryViewHolder, position: Int) {
         val currentItem = bookingHistoryList[position]
         holder.bind(currentItem, userType, onRateClick, onReportClick)
     }
 
+    /**
+     * Returns the number of items in the booking history list.
+     */
     override fun getItemCount() = bookingHistoryList.size
 
     class BookingHistoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -44,6 +53,15 @@ class BookingHistoryAdapter(
         private val btnRate: Button = itemView.findViewById(R.id.btnRate)
         private val btnReport: Button = itemView.findViewById(R.id.btnReport)
 
+        /**
+         * Binds booking data and actions to the list item views.
+         * Shows rate/report buttons for riders and applicable discount/fare.
+         *
+         * @param booking booking history item
+         * @param userType "driver" or "rider" to adjust UI
+         * @param onRateClick callback when rider taps rate
+         * @param onReportClick callback when rider taps report
+         */
         fun bind(booking: BookingRequest, userType: String, onRateClick: (BookingRequest) -> Unit, onReportClick: (BookingRequest) -> Unit) {
             val context = itemView.context
             textViewDate.text = context.getString(R.string.history_date, formatDate(booking.timestamp))
@@ -115,6 +133,12 @@ class BookingHistoryAdapter(
             }
         }
 
+        /**
+         * Formats a timestamp to a human‑readable date and time, or "N/A".
+         *
+         * @param timestamp epoch millis or null
+         * @return formatted date string
+         */
         private fun formatDate(timestamp: Long?): String {
             if (timestamp == null) return "N/A"
             val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())

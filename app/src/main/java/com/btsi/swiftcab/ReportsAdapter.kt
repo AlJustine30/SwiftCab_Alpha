@@ -17,6 +17,9 @@ class ReportsAdapter : ListAdapter<Report, ReportsAdapter.ReportViewHolder>(Diff
     // Map of driverId -> driverName provided by the activity after resolving.
     private var driverNames: Map<String, String> = emptyMap()
 
+    /**
+     * Provides resolved driver names for display alongside IDs and refreshes items.
+     */
     fun setDriverNames(names: Map<String, String>) {
         driverNames = names
         // Names impact displayed text; refresh current list.
@@ -33,11 +36,17 @@ class ReportsAdapter : ListAdapter<Report, ReportsAdapter.ReportViewHolder>(Diff
         }
     }
 
+    /**
+     * Inflates a report item layout and creates its ViewHolder.
+     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReportViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_report, parent, false)
         return ReportViewHolder(view)
     }
 
+    /**
+     * Binds the report item at the given position to the ViewHolder.
+     */
     override fun onBindViewHolder(holder: ReportViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
@@ -50,6 +59,9 @@ class ReportsAdapter : ListAdapter<Report, ReportsAdapter.ReportViewHolder>(Diff
 
         private val dateFormat = SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault())
 
+        /**
+         * Binds category, message, date, driver info, booking ID, and status chip.
+         */
         fun bind(report: Report) {
             textCategory.text = report.category ?: "Unspecified"
             textMessage.text = report.message ?: ""

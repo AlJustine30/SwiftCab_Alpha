@@ -17,6 +17,10 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
 
+    /**
+     * Initializes login form, performs driver/passenger checks, and enforces
+     * email verification for passengers before navigating to the app.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)

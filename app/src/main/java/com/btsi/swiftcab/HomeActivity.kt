@@ -43,6 +43,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var userNameTextView: TextView
     private lateinit var userEmailTextView: TextView
 
+    /**
+     * Initializes toolbar, drawer, header, buttons, and user data listener.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
@@ -101,6 +104,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    /**
+     * Checks for an ongoing booking and prompts to resume if found.
+     */
     override fun onResume() {
         super.onResume()
         // Check for ongoing booking and toggle button visibility; prompt to resume
@@ -134,6 +140,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    /**
+     * Subscribes to Firestore user document and updates header/profile UI.
+     */
     private fun setupUserDataListener() {
         val currentUser = auth.currentUser
         if (currentUser == null) {
@@ -171,6 +180,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
     }
 
+    /**
+     * Delegates toolbar toggle handling for the drawer.
+     */
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (toggle.onOptionsItemSelected(item)) {
             return true
@@ -178,6 +190,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return super.onOptionsItemSelected(item)
     }
 
+    /**
+     * Handles navigation drawer selections and routes to target screens.
+     */
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.nav_booking_history -> {
@@ -207,6 +222,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return true
     }
 
+    /**
+     * Closes the drawer on back press when open; otherwise delegates.
+     */
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
@@ -215,6 +233,9 @@ class HomeActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    /**
+     * Removes Firestore listeners to prevent leaks.
+     */
     override fun onDestroy() {
         super.onDestroy()
         // Remove the listener to prevent memory leaks

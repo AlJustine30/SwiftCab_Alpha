@@ -18,6 +18,9 @@ class LoyaltyActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var firestore: FirebaseFirestore
 
+    /**
+     * Initializes toolbar, loads current points, and sets up redeem actions.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLoyaltyBinding.inflate(layoutInflater)
@@ -31,6 +34,9 @@ class LoyaltyActivity : AppCompatActivity() {
         setupRedeemButtons()
     }
 
+    /**
+     * Configures the toolbar title and up navigation.
+     */
     private fun setupToolbar(toolbar: MaterialToolbar) {
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -38,6 +44,9 @@ class LoyaltyActivity : AppCompatActivity() {
         toolbar.setNavigationOnClickListener { finish() }
     }
 
+    /**
+     * Loads loyalty points and any scheduled next‑booking discount.
+     */
     private fun loadCurrentPoints() {
         val uid = auth.currentUser?.uid
         if (uid == null) {
@@ -64,12 +73,19 @@ class LoyaltyActivity : AppCompatActivity() {
             .addOnCompleteListener { binding.progressBar.visibility = View.GONE }
     }
 
+    /**
+     * Wires redeem buttons for 5%, 10%, and 20% discounts.
+     */
     private fun setupRedeemButtons() {
         binding.buttonRedeem5.setOnClickListener { redeem(50, 5) }
         binding.buttonRedeem10.setOnClickListener { redeem(100, 10) }
         binding.buttonRedeem20.setOnClickListener { redeem(200, 20) }
     }
 
+    /**
+     * Executes a transaction to redeem points for a discount, ensuring no overdraft
+     * and that only one upcoming discount is scheduled at a time.
+     */
     private fun redeem(pointsRequired: Long, discountPercent: Long) {
         val uid = auth.currentUser?.uid ?: return
         binding.progressBar.visibility = View.VISIBLE
@@ -106,4 +122,3 @@ class LoyaltyActivity : AppCompatActivity() {
             .addOnCompleteListener { binding.progressBar.visibility = View.GONE }
     }
 }
-

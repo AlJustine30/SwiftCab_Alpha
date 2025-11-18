@@ -108,6 +108,9 @@ class BookingViewModel(
     private val PER_KM_RATE = 13.5
     private val PER_MIN_RATE = 2.0
 
+    /**
+     * Computes great‑circle distance between two coordinates using haversine.
+     */
     private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
         val R = 6371.0 // km
         val dLat = Math.toRadians(b.latitude - a.latitude)
@@ -121,6 +124,10 @@ class BookingViewModel(
         return R * c
     }
 
+    /**
+     * Creates a new booking request, consuming discount if applied, or resumes
+     * an existing active booking for the rider.
+     */
     fun createBooking(
         pickupLatLng: LatLng,
         destinationLatLng: LatLng,
@@ -224,6 +231,9 @@ class BookingViewModel(
             }
     }
 
+    /**
+     * Requests cancellation of the current active booking via Cloud Function.
+     */
     fun cancelBooking() {
         currentBookingId?.let { bookingId ->
             functions.getHttpsCallable("cancelBooking")
@@ -240,6 +250,10 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Prepares an archive record for booking history; kept client‑side for parity
+     * but actual archiving is handled by a Cloud Function.
+     */
     private fun saveCompletedBookingToHistory(booking: BookingRequest, riderId: String, driverId: String?) {
         try {
             val data = hashMapOf(
@@ -278,6 +292,9 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Subscribes to realtime booking status updates and maps them to UI state.
+     */
     private fun listenForBookingStatus(bookingId: String) {
         removeBookingStatusListener()
         currentBookingId = bookingId
@@ -441,6 +458,9 @@ class BookingViewModel(
         reference.addValueEventListener(bookingStatusListener!!)
     }
 
+    /**
+     * Starts polling the driver’s location and updates UI state.
+     */
     private fun startDriverLocationTracking(driverId: String) {
         stopDriverLocationTracking()
         Log.d(TAG, "Starting to track driver: $driverId")
@@ -466,6 +486,9 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Stops driver location polling and clears tracking state.
+     */
     private fun stopDriverLocationTracking() {
         if (driverLocationTracker != null) {
             Log.d(TAG, "Stopping to track driver: $trackedDriverId")
@@ -475,6 +498,9 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Produces a new UI state with updated driver location when applicable.
+     */
     private fun updateStateWithDriverLocation(driverLocation: LatLng) {
         val currentState = _uiState.value
         val newState = when (currentState) {
@@ -489,6 +515,9 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Clears listeners and resets UI state to Initial.
+     */
     fun clearBookingState() {
         removeBookingStatusListener()
         stopDriverLocationTracking()
@@ -496,12 +525,18 @@ class BookingViewModel(
         _uiState.postValue(BookingUiState.Initial)
     }
 
+    /**
+     * Lifecycle callback: ensure listeners and trackers are removed.
+     */
     override fun onCleared() {
         super.onCleared()
         removeBookingStatusListener()
         stopDriverLocationTracking()
     }
 
+    /**
+     * Safely removes the current booking status listener if present.
+     */
     private fun removeBookingStatusListener() {
         bookingStatusListener?.let { listener ->
             currentBookingId?.let { bookingId ->
@@ -515,6 +550,9 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Attempts to resume an active booking for the current rider.
+     */
     fun resumeActiveBookingIfAny() {
         val riderId = auth.currentUser?.uid ?: return
         val terminalStatuses = setOf("COMPLETED", "CANCELED", "NO_DRIVERS", "ERROR")

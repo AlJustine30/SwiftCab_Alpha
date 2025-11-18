@@ -23,11 +23,17 @@ class RatingsAdapter : ListAdapter<Rating, RatingsAdapter.RatingViewHolder>(DIFF
         }
     }
 
+    /**
+     * Inflates a rating item layout and creates its ViewHolder.
+     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RatingViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_rating, parent, false)
         return RatingViewHolder(view)
     }
 
+    /**
+     * Binds the rating item at the given position to the ViewHolder.
+     */
     override fun onBindViewHolder(holder: RatingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
@@ -38,6 +44,9 @@ class RatingsAdapter : ListAdapter<Rating, RatingsAdapter.RatingViewHolder>(DIFF
         private val commentText: TextView = itemView.findViewById(R.id.itemComment)
         private val dateText: TextView = itemView.findViewById(R.id.itemDate)
 
+        /**
+         * Binds rating value, rater name (with anonymity), comments, and date.
+         */
         fun bind(item: Rating) {
             ratingBar.rating = item.rating
             commentText.text = if (item.comments.isNullOrBlank()) "No comments" else item.comments
@@ -47,6 +56,9 @@ class RatingsAdapter : ListAdapter<Rating, RatingsAdapter.RatingViewHolder>(DIFF
             raterNameText.text = if (displayName.isNullOrBlank()) "Rater: Anonymous" else "Rater: $displayName"
         }
 
+        /**
+         * Obscures the rater name when anonymous by masking middle characters.
+         */
         private fun maskName(name: String?): String {
             if (name.isNullOrBlank()) return "Anonymous"
             val cleaned = name.replace(" ", "")

@@ -114,6 +114,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private val BASE_FARE = 50.0
     private val PER_KM_RATE = 13.5
 
+    /**
+     * Computes great‑circle distance between two coordinates using the haversine formula.
+     *
+     * @param a origin coordinate
+     * @param b destination coordinate
+     * @return distance in kilometers
+     */
     private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
         val R = 6371.0 // km
         val dLat = Math.toRadians(b.latitude - a.latitude)
@@ -127,6 +134,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         return R * c
     }
 
+    /**
+     * Updates the estimated fare label when both pickup and destination are set.
+     * Applies a discount when enabled.
+     */
     private fun updateEstimatedFareIfReady() {
         val pickup = pickupLocationLatLng
         val dest = destinationLatLng
@@ -141,6 +152,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Sets up bindings, ViewModel, Google Play services, map, and UI listeners.
+     * Restores any active booking and initializes discount/time offset.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityBookingBinding.inflate(layoutInflater)
@@ -193,6 +208,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         viewModel.resumeActiveBookingIfAny()
     }
 
+    /**
+     * Wires up primary UI interactions: panel toggle, booking confirm, selection modes,
+     * current‑location shortcuts, back/cancel actions, and initial card visibility.
+     */
     private fun setupUI() {
         // Minimize/expand the booking panel to reveal more of the map
         binding.buttonTogglePanel.setOnClickListener {
@@ -247,6 +266,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Configures and launches Places Autocomplete for pickup and drop‑off search.
+     * Updates markers and fare after selections.
+     */
     private fun setupPlaceSearchButtons() {
         if (!playServicesAvailable) return
 
@@ -304,6 +327,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Sets pickup or drop‑off to the device’s last known location if permitted.
+     * Updates markers, address fields, and estimated fare.
+     *
+     * @param isPickup true to set pickup, false to set drop‑off
+     */
     private fun setCurrentLocationAs(isPickup: Boolean) {
         if (!playServicesAvailable) return
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
@@ -334,6 +363,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Reverse‑geocodes a coordinate into a human‑readable address string.
+     * Falls back to "lat, lng" when geocoder fails.
+     *
+     * @param latLng coordinate to resolve
+     * @return address string or "lat, lng"
+     */
     private fun getAddressFromLatLng(latLng: LatLng): String {
         return try {
             val geocoder = Geocoder(this, Locale.getDefault())
@@ -348,6 +384,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Places or updates the pickup marker and centers the map on it.
+     * Also refreshes the estimated fare.
+     *
+     * @param latLng pickup position
+     */
     private fun setPickupMarker(latLng: LatLng) {
         pickupMarker?.remove()
         pickupMarker = mMap?.addMarker(
@@ -360,6 +402,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         updateEstimatedFareIfReady()
     }
 
+    /**
+     * Places or updates the drop‑off marker and centers the map on it.
+     * Also refreshes the estimated fare.
+     *
+     * @param latLng drop‑off position
+     */
     private fun setDestinationMarker(latLng: LatLng) {
         destinationMarker?.remove()
         destinationMarker = mMap?.addMarker(
@@ -372,6 +420,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         updateEstimatedFareIfReady()
     }
 
+    /**
+     * Receives the GoogleMap instance, sets tap listener, and enables my‑location
+     * when Google Play services and permissions are available.
+     */
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         mMap?.setOnMapClickListener { latLng -> onMapTapped(latLng) }
@@ -380,6 +432,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Enables the map’s my‑location layer if location permissions are granted;
+     * otherwise requests permissions.
+     */
     private fun enableMyLocationIfPermitted() {
         if (!playServicesAvailable) return
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
@@ -401,6 +457,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Handles map taps based on the current selection mode to set pickup or drop‑off.
+     * Updates markers, address fields, and resets selection mode.
+     *
+     * @param latLng tapped coordinate
+     */
     private fun onMapTapped(latLng: LatLng) {
         when (selectionMode) {
             SelectionMode.PICKUP -> {
@@ -426,6 +488,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         updateEstimatedFareIfReady()
     }
 
+    /**
+     * Displays a transient top banner with the provided message and auto‑hides it.
+     *
+     * @param message text to show in the banner
+     */
     private fun showTopBanner(message: String) {
         val banner = binding.topNotificationBanner
         val text = binding.textViewTopBanner
@@ -446,6 +513,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private val hideBannerRunnable = Runnable { hideTopBanner() }
 
+    /**
+     * Animates and hides the top notification banner if visible.
+     */
     private fun hideTopBanner() {
         val banner = binding.topNotificationBanner
         if (banner.visibility == View.VISIBLE) {
@@ -458,6 +528,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Observes booking UI state and updates cards, markers, routes, timers,
+     * fare labels, and review prompts accordingly.
+     */
     private fun observeViewModel() {
         viewModel.uiState.observe(this) { state ->
             when (state) {
@@ -671,6 +745,14 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Shows a centered fare summary popup for the rider including discounts and duration.
+     *
+     * @param totalFare final fare after discounts
+     * @param subtotal fare before discounts
+     * @param discount discount amount applied
+     * @param minutes trip duration in minutes
+     */
     private fun showRiderFarePopup(totalFare: Double, subtotal: Double, discount: Double, minutes: Int) {
         try {
             val view = layoutInflater.inflate(R.layout.dialog_fare_summary_rider, null)
@@ -698,6 +780,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Retrieves directions via Google Directions API, draws a polyline, and fits camera.
+     *
+     * @param origin starting coordinate
+     * @param destination ending coordinate
+     */
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
         val apiKey = getString(R.string.google_maps_key)
         val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=$apiKey"
@@ -734,6 +822,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Decodes an encoded polyline string into a list of coordinates.
+     *
+     * @param encoded encoded polyline from Directions API
+     * @return list of `LatLng` points
+     */
     private fun decodePoly(encoded: String): List<LatLng> {
         val poly = ArrayList<LatLng>()
         var index = 0
@@ -769,6 +863,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         return poly
     }
 
+    /**
+     * Refreshes pickup and destination markers to match current state and fare.
+     */
     private fun updateMarkers() {
         // Preserve existing markers and route; only update pickup/destination markers
         pickupLocationLatLng?.let { setPickupMarker(it) }
@@ -776,6 +873,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         updateEstimatedFareIfReady()
     }
 
+    /**
+     * Creates or moves the driver marker to the provided location.
+     *
+     * @param latLng driver position
+     */
     private fun updateDriverMarker(latLng: LatLng) {
         val icon = bitmapDescriptorFromVector(R.drawable.ic_car_marker)
         if (driverMarker == null) {
@@ -790,11 +892,20 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Removes the driver marker from the map.
+     */
     private fun clearDriverMarker() {
         driverMarker?.remove()
         driverMarker = null
     }
 
+    /**
+     * Converts a vector/drawable resource into a `BitmapDescriptor` for map markers.
+     *
+     * @param drawableId resource ID of the drawable
+     * @return a bitmap descriptor for map usage
+     */
     private fun bitmapDescriptorFromVector(drawableId: Int): BitmapDescriptor {
         val drawable = ContextCompat.getDrawable(this, drawableId) ?: return BitmapDescriptorFactory.defaultMarker()
         val targetSizePx = (48 * resources.displayMetrics.density).toInt().coerceAtLeast(32)
@@ -805,16 +916,30 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         return BitmapDescriptorFactory.fromBitmap(bitmap)
     }
 
+    /**
+     * Clears the current route polyline from the map.
+     */
     private fun clearRoute() {
         currentPolyline?.remove()
         currentPolyline = null
     }
 
+    /**
+     * Hides the booking status card and shows the info card.
+     */
     private fun hideBookingStatusCard() {
         binding.bookingStatusCardView.visibility = View.GONE
         binding.infoCardView.visibility = View.VISIBLE
     }
 
+    /**
+     * Starts a UI timer for per‑minute fees and updates fare breakdown labels.
+     * Uses server time offset to correct client skew.
+     *
+     * @param startMillis server/start timestamp in millis
+     * @param perMinuteRate rate charged per minute
+     * @param initialFee base/initial fee shown upfront
+     */
     private fun startTripTimer(startMillis: Long, perMinuteRate: Double, initialFee: Double) {
         Log.d("BookingActivity", "startTripTimer called with startMillis: $startMillis, perMinuteRate: $perMinuteRate, initialFee: $initialFee")
 
@@ -881,6 +1006,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         tripTimerRunnable!!.run()
     }
 
+    /**
+     * Stops and clears the running trip timer and hides timer‑related labels.
+     */
     private fun stopTripTimer() {
         Log.d("BookingActivity", "stopTripTimer called")
         tripTimerRunnable?.let { tripTimerHandler?.removeCallbacks(it) }
@@ -891,6 +1019,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Keep final fare visible for AwaitingPayment/Completed states; hide here only if card switches
     }
 
+    /**
+     * Reads Firebase server time offset to correct client time for timers.
+     */
     private fun initServerTimeOffset() {
         try {
             val db = FirebaseDatabase.getInstance()
@@ -914,12 +1045,18 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Refreshes discount indicator when the activity resumes.
+     */
     override fun onResume() {
         super.onResume()
         // Refresh discount indicator in case it changed (e.g., after redemption)
         updateDiscountIndicator()
     }
 
+    /**
+     * Loads and toggles the rider’s next‑booking discount and updates UI state.
+     */
     private fun updateDiscountIndicator() {
         val uid = auth.currentUser?.uid
         if (uid == null) {
@@ -956,6 +1093,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Handles location permission result and enables my‑location if granted.
+     */
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
@@ -966,6 +1106,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
+    /**
+     * Validates inputs and requests a booking via the ViewModel.
+     * Applies discount selection and addresses.
+     */
     private fun createBookingRequest() {
         val pickup = pickupLocationLatLng
         val dropoff = destinationLatLng
@@ -985,6 +1129,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         )
     }
 
+    /**
+     * Displays a rating dialog for the rider with submit and report options.
+     *
+     * @param bookingId the completed booking ID
+     * @param driverId the driver to rate or report
+     */
     private fun showRiderRatingDialog(bookingId: String, driverId: String) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
         val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
@@ -1016,6 +1166,14 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         dialog.show()
     }
 
+    /**
+     * Persists a rider’s rating to Firestore and marks the trip as rated.
+     *
+     * @param bookingId rated booking ID
+     * @param driverId driver being rated
+     * @param rating rating value (0.0–5.0)
+     * @param comments optional comments
+     */
     private fun submitRating(bookingId: String, driverId: String, rating: Float, comments: String) {
         val uid = auth.currentUser?.uid
         if (uid.isNullOrEmpty()) {
@@ -1048,6 +1206,12 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Shows an issue report dialog for the rider to submit a problem.
+     *
+     * @param bookingId the booking related to the issue
+     * @param driverId the driver involved
+     */
     private fun showIssueReportDialog(bookingId: String, driverId: String) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_issue_report, null)
         val etCategory = dialogView.findViewById<EditText>(R.id.editTextIssueCategory)
@@ -1073,6 +1237,14 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         dialog.show()
     }
 
+    /**
+     * Submits a rider issue report to Firestore and navigates to Home on success.
+     *
+     * @param bookingId the booking being reported
+     * @param driverId driver associated with the booking
+     * @param category optional issue category
+     * @param message description of the issue
+     */
     private fun submitIssueReport(bookingId: String, driverId: String, category: String, message: String) {
         val uid = auth.currentUser?.uid
         if (uid.isNullOrEmpty()) {
@@ -1102,6 +1274,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 Toast.makeText(this, "Failed to submit report: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
+/**
+ * Loads driver rating summary and wires navigation to full reviews.
+ *
+ * @param driverId target driver user ID
+ */
 private fun updateDriverRatingSummary(driverId: String?) {
     // Wire reviews button for passengers
     binding.buttonViewAllDriverReviews.isEnabled = !driverId.isNullOrBlank()
@@ -1142,6 +1319,11 @@ private fun updateDriverRatingSummary(driverId: String?) {
         }
 }
 
+/**
+ * Loads the driver’s profile image from user or driver collection and binds it.
+ *
+ * @param driverId target driver user ID
+ */
 private fun loadDriverProfileImage(driverId: String?) {
     if (driverId.isNullOrBlank()) {
         return

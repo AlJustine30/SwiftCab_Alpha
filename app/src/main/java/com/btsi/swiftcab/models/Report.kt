@@ -2,6 +2,10 @@ package com.btsi.swiftcab.models
 
 import com.google.firebase.Timestamp
 
+/**
+ * Represents an issue report associated with a booking, including reporter,
+ * message, category, and resolution metadata when handled by admins.
+ */
 data class Report(
     val bookingId: String = "",
     val reporterId: String = "",

@@ -28,6 +28,10 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
 
     private val TAG = "DriverBookingHistory"
 
+    /**
+     * Initializes toolbar, Firebase instances, adapter, and fetches
+     * the driver’s booking history.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_driver_booking_history)
@@ -58,6 +62,10 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
         fetchDriverBookingHistory()
     }
 
+    /**
+     * Loads booking history for the current driver ordered by most recent
+     * and updates the list and empty state. Also triggers ratings load.
+     */
     private fun fetchDriverBookingHistory() {
         Log.d(TAG, "Fetching booking history for driver ID: $currentDriverId")
         firestore.collection("bookinghistory")
@@ -93,6 +101,9 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * Loads rider ratings for completed trips in the history list and binds them.
+     */
     private fun loadRiderRatingsForHistory() {
         val driverId = currentDriverId ?: return
         val itemsNeedingRatings = bookingHistoryList.filter { it.bookingId != null && it.status == "COMPLETED" }
@@ -115,6 +126,11 @@ class DriverBookingHistoryActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Handles toolbar up navigation by delegating back press.
+     *
+     * @return true when handled
+     */
     override fun onSupportNavigateUp(): Boolean {
         onBackPressedDispatcher.onBackPressed()
         return true

@@ -24,6 +24,9 @@ class MyReportsActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var summaryText: TextView
 
+    /**
+     * Initializes toolbar, recycler, adapter and loads current user's reports.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_my_reports)
@@ -47,6 +50,9 @@ class MyReportsActivity : AppCompatActivity() {
         loadMyReports()
     }
 
+    /**
+     * Loads all reports submitted by the current user and resolves driver names.
+     */
     private fun loadMyReports() {
         val uid = auth.currentUser?.uid
         if (uid.isNullOrEmpty()) {
@@ -71,6 +77,9 @@ class MyReportsActivity : AppCompatActivity() {
             .addOnCompleteListener { progressBar.visibility = View.GONE }
     }
 
+    /**
+     * Looks up driver names for the given reports and updates adapter metadata.
+     */
     private fun resolveDriverNames(items: List<Report>) {
         val ids = items.map { it.driverId }.filter { it.isNotBlank() }.distinct()
         if (ids.isEmpty()) {
@@ -96,6 +105,9 @@ class MyReportsActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Handles toolbar up navigation.
+     */
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true

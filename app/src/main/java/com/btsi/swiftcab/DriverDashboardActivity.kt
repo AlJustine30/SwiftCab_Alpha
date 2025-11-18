@@ -78,6 +78,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         private const val TAG = "DriverDashboard"
     }
 
+    /**
+     * Initializes bindings, Play Services, map, server time offset,
+     * and sets up toolbar, drawer, and UI listeners.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDriverDashboardBinding.inflate(layoutInflater)
@@ -100,6 +104,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         setupUI()
     }
 
+    /**
+     * Receives the map, enables my‑location when permitted and services available,
+     * and shows a notice otherwise.
+     */
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         // Enable my location button on the map only if Play Services available
@@ -110,6 +118,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Configures the toolbar and navigation drawer for the driver dashboard.
+     */
     private fun setupToolbarAndDrawer() {
         setSupportActionBar(binding.toolbarDriverDashboard)
         toggle = ActionBarDrawerToggle(
@@ -125,6 +136,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         supportActionBar?.setDisplayHomeAsUpEnabled(false)
     }
 
+    /**
+     * Wires UI interactions: online/offline switch, nav items, offers list,
+     * trip action button, and initial status.
+     */
     private fun setupUI() {
         val currentUser = auth.currentUser
         if (currentUser == null) {
@@ -215,6 +230,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.recyclerViewDriverOffers.adapter = offersAdapter
     }
 
+    /**
+     * Starts periodic location updates to update driver presence, offers distance,
+     * and active booking driverLocation.
+     */
     private fun startLocationUpdates() {
         if (!playServicesAvailable) return
         val locationRequest = LocationRequest.create().apply {
@@ -255,6 +274,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
     }
 
+    /**
+     * Sets the driver offline, stops location and listeners, clears realtime presence,
+     * and resets UI to the default view.
+     */
     private fun goOffline() {
         binding.switchDriverStatus.text = getString(R.string.status_offline)
         updateStatusHeaderColor(false)
@@ -267,6 +290,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         Toast.makeText(this, "You are now offline", Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * Copies driver profile info (name, phone, vehicle) from Firestore into Realtime DB
+     * to ensure rider UIs show details consistently.
+     */
     private fun backfillDriverProfileToRealtime() {
         val uid = auth.currentUser?.uid ?: return
         val defaultName = auth.currentUser?.displayName
@@ -308,12 +335,18 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Stops location updates if previously started.
+     */
     private fun stopLocationUpdates() {
         if (::locationCallback.isInitialized) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }
     }
 
+    /**
+     * Subscribes to driverOffers for this driver and updates the offers list UI.
+     */
     private fun attachDriverOffersListener() {
         val driverId = auth.currentUser?.uid ?: return
         offersListenerReference = db.getReference("driverOffers").child(driverId)
@@ -340,12 +373,18 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         offersListenerReference?.addValueEventListener(offersValueListener!!)
     }
 
+    /**
+     * Unsubscribes the driverOffers listener if present.
+     */
     private fun detachDriverOffersListener() {
         offersValueListener?.let { listener ->
             offersListenerReference?.removeEventListener(listener)
         }
     }
 
+    /**
+     * Displays a booking offer card with passenger and route details, allowing accept/decline.
+     */
     private fun showBookingOfferDialog(bookingRequest: BookingRequest) {
         binding.bookingRequestLayout.visibility = View.VISIBLE
         binding.textViewPickupLocationInfo.text = "Pickup: ${bookingRequest.pickupAddress}"
@@ -365,6 +404,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Requests to accept a booking via Cloud Function and starts listening to it.
+     */
     private fun acceptBooking(bookingId: String?) {
         if (bookingId == null) return
 
@@ -384,6 +426,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Listens for updates to the active booking and updates UI accordingly.
+     */
     private fun listenForActiveBooking(bookingId: String) {
         detachActiveBookingListener()
         activeBookingRef = db.getReference("bookingRequests").child(bookingId)
@@ -431,12 +476,18 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         activeBookingRef?.addValueEventListener(activeBookingListener!!)
     }
 
+    /**
+     * Unsubscribes the active booking listener if present.
+     */
     private fun detachActiveBookingListener() {
         activeBookingListener?.let { listener ->
             activeBookingRef?.removeEventListener(listener)
         }
     }
 
+    /**
+     * Updates the active trip card, markers, and route based on booking status.
+     */
     private fun updateUiForActiveTrip(booking: BookingRequest) {
         showActiveTripView()
         binding.passengerNameText.text = "Passenger: ${booking.riderName}"
@@ -596,6 +647,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Advances the trip to the next status and requests server updates.
+     */
     private fun onTripActionButtonClicked() {
         val booking = currentBooking ?: return
         val currentStatus = booking.status
@@ -613,6 +667,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Calls Cloud Function to update trip status and performs client‑side fallbacks.
+     */
     private fun updateTripStatus(bookingId: String, newStatus: String) {
         binding.tripActionButton.isEnabled = false
         functions.getHttpsCallable("updateTripStatus")
@@ -714,6 +771,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Shows the default dashboard view and clears map overlays.
+     */
     private fun showDefaultView() {
         binding.driverStatusLayout.visibility = View.VISIBLE
         binding.tripDetailsMapContainer.visibility = View.GONE
@@ -724,6 +784,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         farePopupShown = false
     }
 
+    /**
+     * Shows the active trip card and map container while hiding other views.
+     */
     private fun showActiveTripView() {
         binding.driverStatusLayout.visibility = View.GONE
         binding.bookingRequestLayout.visibility = View.GONE
@@ -731,6 +794,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.tripDetailsCard.visibility = View.VISIBLE
     }
 
+    /**
+     * Handles location permission result, enabling online mode and my‑location when granted.
+     */
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
@@ -743,6 +809,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Checks for an active booking on resume and provides a quick return action.
+     */
     override fun onResume() {
         super.onResume()
         auth.currentUser?.uid?.let {
@@ -781,6 +850,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Ensures driver goes offline and listeners are detached to prevent leaks.
+     */
     override fun onDestroy() {
         super.onDestroy()
         // To prevent memory leaks, we should ensure we go offline and detach listeners
@@ -790,6 +862,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
 
+    /**
+     * Fetches directions via the Google Directions API, draws the polyline,
+     * and fits camera to the route.
+     */
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
         val apiKey = getString(R.string.google_maps_key)
         val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=$apiKey"
@@ -826,6 +902,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Decodes an encoded polyline string into coordinate points.
+     */
     private fun decodePoly(encoded: String): List<LatLng> {
         val poly = ArrayList<LatLng>()
         var index = 0
@@ -863,6 +942,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
     // Helper: Load passenger profile image by userId from Firestore
+    /**
+     * Loads a passenger’s profile image into the provided ImageView if available.
+     */
     private fun loadPassengerProfileImage(userId: String?, target: ImageView?) {
         if (userId.isNullOrBlank() || target == null) {
             return
@@ -879,6 +961,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Puts the driver online: checks permission, enables my‑location,
+     * sets presence, starts updates, and attaches offers listener.
+     */
     private fun goOnline() {
         // Ensure location permission before going online
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -920,12 +1006,18 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     // Update header background with rounded online/offline cards
+    /**
+     * Updates the dashboard header background to reflect online/offline state.
+     */
     private fun updateStatusHeaderColor(isOnline: Boolean) {
         val drawableRes = if (isOnline) R.drawable.bg_status_online else R.drawable.bg_status_offline
         binding.driverStatusLayout.setBackgroundResource(drawableRes)
     }
 
     // Load the current driver's name and profile image from Firestore, with fallbacks
+    /**
+     * Loads current driver name and avatar from Firestore with fallbacks.
+     */
     private fun loadCurrentDriverProfile() {
         val uid = auth.currentUser?.uid ?: return
         // First try users/{uid}
@@ -987,6 +1079,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    /**
+     * Computes distance between two coordinates using `Location.distanceBetween`.
+     */
     private fun calculateDistanceKm(a: LatLng, b: LatLng): Double {
         val results = FloatArray(1)
         android.location.Location.distanceBetween(
@@ -997,6 +1092,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         return (results[0] / 1000.0)
     }
 
+    /**
+     * Reads Firebase server time offset to align timer calculations.
+     */
     private fun initServerTimeOffset() {
         try {
             val db = FirebaseDatabase.getInstance()
@@ -1020,6 +1118,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Shows a driver fare summary popup with breakdown and payment confirmation.
+     */
     private fun showDriverFarePopup(totalFare: Double, booking: BookingRequest?) {
         try {
             val view = layoutInflater.inflate(R.layout.dialog_fare_summary_driver, null)
@@ -1076,6 +1177,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    /**
+     * Starts driver trip timer and updates fee labels every second.
+     */
     private fun startDriverTripTimer(startMs: Long, perMin: Double, base: Double, perKm: Double, distanceKm: Double) {
         stopDriverTripTimer()
         val handler = android.os.Handler(mainLooper)
@@ -1124,6 +1228,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         handler.post(driverTripTimerRunnable!!)
     }
 
+    /**
+     * Stops the driver trip timer and hides fee labels.
+     */
     private fun stopDriverTripTimer() {
         driverTripTimerHandler?.removeCallbacks(driverTripTimerRunnable ?: return)
         driverTripTimerHandler = null

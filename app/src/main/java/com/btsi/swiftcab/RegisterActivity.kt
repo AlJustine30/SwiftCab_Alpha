@@ -16,6 +16,10 @@ class   RegisterActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
 
+    /**
+     * Initializes registration form, creates account, sends verification email,
+     * and stores profile in Firestore before redirecting to login.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_register)

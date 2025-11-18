@@ -7,6 +7,10 @@ import com.google.android.material.color.DynamicColors
 
 class SwiftCabApp : Application() {
 
+    /**
+     * Initializes app‑wide services: applies dynamic Material colors and
+     * initializes the Places SDK for autocomplete and location search.
+     */
     override fun onCreate() {
         super.onCreate()
 

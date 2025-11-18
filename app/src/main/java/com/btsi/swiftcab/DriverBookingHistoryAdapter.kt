@@ -26,12 +26,18 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         val discountTextView: TextView = view.findViewById(R.id.textViewDriverHistoryDiscount)
     }
 
+    /**
+     * Inflates the driver booking history item and creates its ViewHolder.
+     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_driver_booking_history, parent, false)
         return ViewHolder(view)
     }
 
+    /**
+     * Binds booking data to the views including fare, discount, and rating.
+     */
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val booking = bookingHistoryList[position]
 
@@ -87,8 +93,16 @@ class DriverBookingHistoryAdapter(private var bookingHistoryList: List<BookingRe
         }
     }
 
+    /**
+     * Returns the item count of the driver booking history list.
+     */
     override fun getItemCount() = bookingHistoryList.size
 
+    /**
+     * Replaces the current list data and refreshes the adapter.
+     *
+     * @param newHistoryList updated booking history items
+     */
     fun updateData(newHistoryList: List<BookingRequest>) {
         bookingHistoryList = newHistoryList
         notifyDataSetChanged()

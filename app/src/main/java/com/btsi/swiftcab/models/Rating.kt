@@ -1,6 +1,10 @@
 
 package com.btsi.swiftcab.models
 
+/**
+ * Represents a rating left by a user for a trip, including optional comments,
+ * anonymity flag, and timestamp. Used for both rider and driver ratings.
+ */
 data class Rating(
     val bookingId: String = "",
     val raterId: String = "",
@@ -11,4 +15,4 @@ data class Rating(
     val anonymous: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
-
+
