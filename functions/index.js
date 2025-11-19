@@ -677,6 +677,74 @@ exports.createDriverAccount = onCall(async (request) => {
   }
 });
 
+/**
+ * Callable: Update an existing driver account (Auth + Firestore) by an Admin.
+ */
+exports.updateDriverAccount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const adminUid = request.auth.uid;
+  const adminDoc = await firestore.collection("users").doc(adminUid).get();
+  if (!adminDoc.exists || adminDoc.get("role") !== "Admin") {
+    throw new HttpsError("permission-denied", "You are not an Admin.");
+  }
+
+  const data = request.data || {};
+  const uid = String(data.driverId || "").trim();
+  if (!uid) {
+    throw new HttpsError("invalid-argument", "Missing driverId.");
+  }
+
+  const name = data.name !== undefined ? String(data.name).trim() : undefined;
+  const email = data.email !== undefined ? String(data.email).trim() : undefined;
+  const password = data.password !== undefined ? String(data.password) : undefined;
+  const phone = data.phone !== undefined ? String(data.phone) : undefined;
+  const license = data.license !== undefined ? String(data.license) : undefined;
+  const address = data.address !== undefined ? String(data.address) : undefined;
+  const status = data.status !== undefined ? String(data.status) : undefined;
+  const vehicle = data.vehicle || {};
+
+  try {
+    const updates = {};
+    if (email) updates.email = email;
+    if (password && password.length >= 6) updates.password = password;
+    if (name) updates.displayName = name;
+    if (Object.keys(updates).length > 0) {
+      await authAdmin.updateUser(uid, updates);
+    }
+
+    const driverDoc = {};
+    if (name !== undefined) driverDoc.name = name;
+    if (email !== undefined) driverDoc.email = email;
+    if (phone !== undefined) driverDoc.phone = phone;
+    if (license !== undefined) driverDoc.license = license;
+    if (address !== undefined) driverDoc.address = address;
+    if (status !== undefined) driverDoc.status = status;
+    driverDoc.vehicle = {
+      make: vehicle.make || null,
+      model: vehicle.model || null,
+      year: vehicle.year || null,
+      color: vehicle.color || null,
+      licensePlate: vehicle.licensePlate || null,
+    };
+    await firestore.collection("drivers").doc(uid).set(driverDoc, { merge: true });
+
+    const userDoc = {};
+    if (name !== undefined) userDoc.name = name;
+    if (email !== undefined) userDoc.email = email;
+    if (phone !== undefined) userDoc.phone = phone;
+    if (status !== undefined) userDoc.status = status;
+    userDoc.role = "Driver";
+    userDoc.uid = uid;
+    await firestore.collection("users").doc(uid).set(userDoc, { merge: true });
+
+    return { ok: true };
+  } catch (err) {
+    throw new HttpsError("internal", err?.message || "Failed to update driver");
+  }
+});
+
 
 /**
  * V2 Callable Cloud Function for a driver to accept a booking.

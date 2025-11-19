@@ -530,8 +530,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         } else {
             currentPolyline?.remove()
-        farePopupShown = false
-    }
+        }
 
         // Update action button based on status
         when (booking.status) {
