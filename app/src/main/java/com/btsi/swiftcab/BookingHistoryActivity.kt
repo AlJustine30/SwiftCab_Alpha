@@ -276,26 +276,35 @@ class BookingHistoryActivity : AppCompatActivity() {
      * @param riderId the current rider's user ID
      */
     private fun loadRatingsForHistory(riderId: String) {
-        val itemsNeedingRatings = bookingHistoryList.filter { it.bookingId != null && it.riderRated && it.status == "COMPLETED" }
-        if (itemsNeedingRatings.isEmpty()) return
+        val completedIds = bookingHistoryList
+            .filter { it.bookingId != null && it.status == "COMPLETED" }
+            .mapNotNull { it.bookingId }
+            .toSet()
+        if (completedIds.isEmpty()) return
 
-        itemsNeedingRatings.forEach { booking ->
-            val bookingId = booking.bookingId ?: return@forEach
-            firestore.collection("ratings")
-                .whereEqualTo("bookingId", bookingId)
-                .whereEqualTo("raterId", riderId)
-                .get()
-                .addOnSuccessListener { snap ->
-                    val r = snap.documents.firstOrNull()?.toObject(Rating::class.java)
-                    if (r != null) {
-                        booking.riderRating = r.rating
-                        bookingHistoryAdapter.notifyDataSetChanged()
+        firestore.collection("ratings")
+            .whereEqualTo("raterId", riderId)
+            .get()
+            .addOnSuccessListener { snap ->
+                val ratingsByBooking = snap.documents
+                    .mapNotNull { it.toObject(Rating::class.java) }
+                    .associateBy { it.bookingId }
+
+                var changed = false
+                bookingHistoryList.forEach { booking ->
+                    val id = booking.bookingId
+                    if (id != null && completedIds.contains(id)) {
+                        val r = ratingsByBooking[id]
+                        if (r != null) {
+                            booking.riderRating = r.rating
+                            changed = true
+                        }
                     }
                 }
-                .addOnFailureListener {
-                    // Silently ignore rating load failures for history UI
-                }
-        }
+                if (changed) bookingHistoryAdapter.notifyDataSetChanged()
+            }
+            .addOnFailureListener {
+            }
     }
 
     /**

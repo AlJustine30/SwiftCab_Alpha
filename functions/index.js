@@ -606,6 +606,77 @@ exports.getBookedDrivers = onCall(async (request) => {
   }
 });
 
+/**
+ * Callable: Create a new driver account (Auth + Firestore) by an Admin.
+ */
+exports.createDriverAccount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const adminUid = request.auth.uid;
+  const adminDoc = await firestore.collection("users").doc(adminUid).get();
+  if (!adminDoc.exists || adminDoc.get("role") !== "Admin") {
+    throw new HttpsError("permission-denied", "You are not an Admin.");
+  }
+
+  const data = request.data || {};
+  const name = String(data.name || '').trim();
+  const email = String(data.email || '').trim();
+  const password = String(data.password || '');
+  const phone = data.phone ? String(data.phone) : null;
+  const license = data.license ? String(data.license) : null;
+  const address = data.address ? String(data.address) : null;
+  const vehicle = data.vehicle || {};
+
+  if (!name || !email || !password) {
+    throw new HttpsError("invalid-argument", "Missing required fields: name, email, password.");
+  }
+  if (password.length < 6) {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+
+  try {
+    const userRecord = await authAdmin.createUser({ email, password, displayName: name });
+    const uid = userRecord.uid;
+
+    const driverDoc = {
+      uid,
+      name,
+      email,
+      phone,
+      license,
+      address,
+      role: 'Driver',
+      status: 'active',
+      vehicle: {
+        make: vehicle.make || null,
+        model: vehicle.model || null,
+        year: vehicle.year || null,
+        color: vehicle.color || null,
+        licensePlate: vehicle.licensePlate || null,
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    await firestore.collection('drivers').doc(uid).set(driverDoc);
+
+    await firestore.collection('users').doc(uid).set({
+      role: 'Driver',
+      email,
+      name,
+      phone,
+      status: 'active',
+      uid,
+    }, { merge: true });
+
+    return { ok: true, driverId: uid };
+  } catch (err) {
+    if (err && (err.code === 'auth/email-already-exists')) {
+      throw new HttpsError('already-exists', 'Email already exists.');
+    }
+    throw new HttpsError('internal', err?.message || 'Failed to create driver');
+  }
+});
+
 
 /**
  * V2 Callable Cloud Function for a driver to accept a booking.

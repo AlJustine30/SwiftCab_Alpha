@@ -28,14 +28,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if false; // prevent list over entire collection
-      // Allow each user to create/update their own profile doc (for role assignment)
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
     match /drivers/{driverId} {
       allow get: if isSignedIn();
-      // Allow Admins to list drivers for dashboard management
       allow list: if isAdmin();
+      allow create, update: if isAdmin();
     }
 
     // Rides: rider, driver, or Admin can read; Admin can query list
