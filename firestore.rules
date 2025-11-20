@@ -58,8 +58,8 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Public summaries (e.g., driver_rating_summaries_* docs)
-    match /public/{docId} {
+    // Average rating summaries (e.g., driver_rating_summaries_* docs)
+    match /AVGrating/{docId} {
       allow get: if isSignedIn();
       allow list: if false;
       allow create, update, delete: if false;
@@ -117,6 +117,14 @@ service cloud.firestore {
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','resolvedAt','resolvedBy']);
       // Deleting reports is not allowed
+      allow delete: if false;
+    }
+
+    // Config docs: allow Admin-only reads/writes (e.g., Google Maps API key)
+    match /config/{docId} {
+      allow get: if isSignedIn() && isAdmin();
+      allow list: if false;
+      allow create, update: if isSignedIn() && isAdmin();
       allow delete: if false;
     }
   }

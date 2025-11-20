@@ -1299,7 +1299,7 @@ private fun updateDriverRatingSummary(driverId: String?) {
     }
     binding.driverRatingSummary.visibility = View.VISIBLE
 
-    firestore.collection("public").document("driver_rating_summaries_" + driverId)
+    firestore.collection("AVGrating").document("driver_rating_summaries_" + driverId)
         .get()
         .addOnSuccessListener { doc ->
             if (!doc.exists()) {

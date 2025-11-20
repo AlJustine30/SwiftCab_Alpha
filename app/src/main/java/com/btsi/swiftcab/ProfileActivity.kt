@@ -448,16 +448,27 @@ class ProfileActivity : AppCompatActivity() {
     private fun updateUserProfileImageOnly(newImageUrl: String) {
         val userId = auth.currentUser?.uid ?: return
         val updates = mapOf("profileImageUrl" to newImageUrl)
-        db.collection("users").document(userId).update(updates)
-            .addOnSuccessListener {
-                Toast.makeText(this, "Profile image updated.", Toast.LENGTH_SHORT).show()
-                // Reset image unsaved state
-                initialImageUrl = newImageUrl
-                selectedImageUri = null
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to update profile image: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+        if (isDriver) {
+            db.collection("drivers").document(userId).set(updates, com.google.firebase.firestore.SetOptions.merge())
+                .addOnSuccessListener {
+                    Toast.makeText(this, "Driver profile image updated.", Toast.LENGTH_SHORT).show()
+                    initialImageUrl = newImageUrl
+                    selectedImageUri = null
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(this, "Failed to update driver image: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+        } else {
+            db.collection("users").document(userId).update(updates)
+                .addOnSuccessListener {
+                    Toast.makeText(this, "Profile image updated.", Toast.LENGTH_SHORT).show()
+                    initialImageUrl = newImageUrl
+                    selectedImageUri = null
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(this, "Failed to update profile image: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+        }
     }
 
     /**

@@ -117,6 +117,36 @@ exports.backfillCompletedToHistory = onCall(async (request) => {
  * Callable backfill: copy all docs from bookinghistory -> completedBookings
  */
 
+/**
+ * Save Google Maps API key to Firestore config. Admin-only callable.
+ */
+exports.saveGoogleMapsKey = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const uid = request.auth.uid;
+  try {
+    const userDoc = await firestore.collection("users").doc(uid).get();
+    const role = userDoc.exists ? (userDoc.get("role") || "") : "";
+    if (role !== "Admin") {
+      throw new HttpsError("permission-denied", "Admin privileges required.");
+    }
+    const apiKey = (request.data && request.data.apiKey) || "";
+    if (typeof apiKey !== "string" || apiKey.length < 20) {
+      throw new HttpsError("invalid-argument", "Invalid API key.");
+    }
+    await firestore.collection("config").doc("googleMaps").set({
+      apiKey,
+      updatedBy: uid,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    throw new HttpsError("internal", err.message || "Failed to save key");
+  }
+});
+
 
 /**
  * V2 Cloud Function triggered when a new booking request is created.
@@ -517,7 +547,7 @@ exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (e
     });
     const avg = count > 0 ? sum / count : 0;
 
-    await firestore.collection("public").doc(`driver_rating_summaries_${ratedId}`).set(
+    await firestore.collection("AVGrating").doc(`driver_rating_summaries_${ratedId}`).set(
       {
         ratedId,
         average: avg,
@@ -659,14 +689,7 @@ exports.createDriverAccount = onCall(async (request) => {
     };
     await firestore.collection('drivers').doc(uid).set(driverDoc);
 
-    await firestore.collection('users').doc(uid).set({
-      role: 'Driver',
-      email,
-      name,
-      phone,
-      status: 'active',
-      uid,
-    }, { merge: true });
+    // Do not mirror drivers into 'users' collection
 
     return { ok: true, driverId: uid };
   } catch (err) {
@@ -730,14 +753,7 @@ exports.updateDriverAccount = onCall(async (request) => {
     };
     await firestore.collection("drivers").doc(uid).set(driverDoc, { merge: true });
 
-    const userDoc = {};
-    if (name !== undefined) userDoc.name = name;
-    if (email !== undefined) userDoc.email = email;
-    if (phone !== undefined) userDoc.phone = phone;
-    if (status !== undefined) userDoc.status = status;
-    userDoc.role = "Driver";
-    userDoc.uid = uid;
-    await firestore.collection("users").doc(uid).set(userDoc, { merge: true });
+    // Do not mirror drivers into 'users' collection
 
     return { ok: true };
   } catch (err) {
@@ -953,7 +969,7 @@ exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (e
     });
     const avg = count > 0 ? sum / count : 0;
 
-    await firestore.collection("public").doc(`driver_rating_summaries_${ratedId}`).set(
+    await firestore.collection("AVGrating").doc(`driver_rating_summaries_${ratedId}`).set(
       {
         ratedId,
         average: avg,
