@@ -88,6 +88,13 @@ function sanitizeHistoryDoc(data) {
   };
 }
 
+const DAGUPAN_BOUNDS = { minLat: 16.001, maxLat: 16.095, minLng: 120.302, maxLng: 120.380 };
+function isInDagupan(lat, lng) {
+  return typeof lat === "number" && typeof lng === "number" &&
+    lat >= DAGUPAN_BOUNDS.minLat && lat <= DAGUPAN_BOUNDS.maxLat &&
+    lng >= DAGUPAN_BOUNDS.minLng && lng <= DAGUPAN_BOUNDS.maxLng;
+}
+
 /**
  * Callable backfill: copy all docs from completedBookings -> bookinghistory
  */
@@ -167,6 +174,16 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
 
     logger.log(`New booking ${bookingId}:`, bookingData);
 
+    const pLat = bookingData.pickupLatitude;
+    const pLng = bookingData.pickupLongitude;
+    const dLat = bookingData.destinationLatitude;
+    const dLng = bookingData.destinationLongitude;
+    if (!isInDagupan(pLat, pLng) || !isInDagupan(dLat, dLng)) {
+        await snapshot.ref.update({ status: "CANCELED", cancellationReason: "OUT_OF_SERVICE_AREA" });
+        logger.warn(`Booking ${bookingId} canceled: outside Dagupan bounds.`);
+        return null;
+    }
+
     try {
         // Compute and attach estimated fare server-side (fallback if missing)
         try {
@@ -199,9 +216,12 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
         const driversWithDistance = [];
         driversSnapshot.forEach((driverSnapshot) => {
             const driver = driverSnapshot.val();
-            // Read nested driver.location first, then fallback to legacy top-level latitude/longitude
-            const lat = driver?.location?.latitude ?? driver?.latitude;
-            const lng = driver?.location?.longitude ?? driver?.longitude;
+            const lat = (driver && driver.location && typeof driver.location.latitude === "number")
+                ? driver.location.latitude
+                : (driver && typeof driver.latitude === "number" ? driver.latitude : undefined);
+            const lng = (driver && driver.location && typeof driver.location.longitude === "number")
+                ? driver.location.longitude
+                : (driver && typeof driver.longitude === "number" ? driver.longitude : undefined);
             if (typeof lat === "number" && typeof lng === "number") {
                 const driverLocation = { latitude: lat, longitude: lng };
                 const distance = getDistance(riderPickupLocation, driverLocation);
@@ -529,7 +549,7 @@ function getDistance(coord1, coord2) {
 exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (event) => {
   try {
     const rating = event.data.data();
-    const ratedId = rating?.ratedId;
+    const ratedId = rating && rating.ratedId;
     if (!ratedId) {
       logger.warn("aggregateDriverRating: missing ratedId");
       return;
@@ -696,7 +716,7 @@ exports.createDriverAccount = onCall(async (request) => {
     if (err && (err.code === 'auth/email-already-exists')) {
       throw new HttpsError('already-exists', 'Email already exists.');
     }
-    throw new HttpsError('internal', err?.message || 'Failed to create driver');
+    throw new HttpsError('internal', (err && err.message) || 'Failed to create driver');
   }
 });
 
@@ -757,7 +777,7 @@ exports.updateDriverAccount = onCall(async (request) => {
 
     return { ok: true };
   } catch (err) {
-    throw new HttpsError("internal", err?.message || "Failed to update driver");
+    throw new HttpsError("internal", (err && err.message) || "Failed to update driver");
   }
 });
 
@@ -951,7 +971,7 @@ function getDistance(coord1, coord2) {
 exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (event) => {
   try {
     const rating = event.data.data();
-    const ratedId = rating?.ratedId;
+    const ratedId = rating && rating.ratedId;
     if (!ratedId) {
       logger.warn("aggregateDriverRating: missing ratedId");
       return;

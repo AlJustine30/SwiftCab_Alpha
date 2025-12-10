@@ -27,7 +27,7 @@ service cloud.firestore {
     // Users and drivers profile images: readable by signed-in users
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if false; // prevent list over entire collection
+      allow list: if isAdmin();
       allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
@@ -35,6 +35,7 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create, update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Rides: rider, driver, or Admin can read; Admin can query list

@@ -34,6 +34,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.api.model.RectangularBounds
 import com.google.android.libraries.places.api.model.TypeFilter
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
@@ -113,6 +114,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     // Estimated fare calculation
     private val BASE_FARE = 50.0
     private val PER_KM_RATE = 13.5
+
+    private val DAGUPAN_SW = LatLng(16.001, 120.302)
+    private val DAGUPAN_NE = LatLng(16.095, 120.380)
+    private fun isInDagupanBounds(latLng: LatLng): Boolean {
+        return latLng.latitude >= DAGUPAN_SW.latitude && latLng.latitude <= DAGUPAN_NE.latitude &&
+                latLng.longitude >= DAGUPAN_SW.longitude && latLng.longitude <= DAGUPAN_NE.longitude
+    }
 
     /**
      * Computes great‑circle distance between two coordinates using the haversine formula.
@@ -284,11 +292,15 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (result.resultCode == RESULT_OK && result.data != null) {
                 val place = Autocomplete.getPlaceFromIntent(result.data!!)
                 place.latLng?.let { latLng ->
-                    pickupLocationLatLng = latLng
-                    binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
-                    setPickupMarker(latLng)
-                    selectionMode = SelectionMode.NONE
-                    updateEstimatedFareIfReady()
+                    if (isInDagupanBounds(latLng)) {
+                        pickupLocationLatLng = latLng
+                        binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
+                        setPickupMarker(latLng)
+                        selectionMode = SelectionMode.NONE
+                        updateEstimatedFareIfReady()
+                    } else {
+                        Toast.makeText(this, "Pickup must be within Dagupan City.", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } else if (result.data != null) {
                 val status = Autocomplete.getStatusFromIntent(result.data!!)
@@ -300,11 +312,15 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (result.resultCode == RESULT_OK && result.data != null) {
                 val place = Autocomplete.getPlaceFromIntent(result.data!!)
                 place.latLng?.let { latLng ->
-                    destinationLatLng = latLng
-                    binding.destinationEditText.setText(place.address ?: place.name ?: "")
-                    setDestinationMarker(latLng)
-                    selectionMode = SelectionMode.NONE
-                    updateEstimatedFareIfReady()
+                    if (isInDagupanBounds(latLng)) {
+                        destinationLatLng = latLng
+                        binding.destinationEditText.setText(place.address ?: place.name ?: "")
+                        setDestinationMarker(latLng)
+                        selectionMode = SelectionMode.NONE
+                        updateEstimatedFareIfReady()
+                    } else {
+                        Toast.makeText(this, "Drop-off must be within Dagupan City.", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } else if (result.data != null) {
                 val status = Autocomplete.getStatusFromIntent(result.data!!)
@@ -315,6 +331,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.buttonPickupSearch.setOnClickListener {
             val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
                 .setTypeFilter(TypeFilter.ADDRESS)
+                .setLocationRestriction(RectangularBounds.newInstance(DAGUPAN_SW, DAGUPAN_NE))
                 .build(this)
             pickupSearchLauncher.launch(intent)
         }
@@ -322,6 +339,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.buttonDestinationSearch.setOnClickListener {
             val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
                 .setTypeFilter(TypeFilter.ADDRESS)
+                .setLocationRestriction(RectangularBounds.newInstance(DAGUPAN_SW, DAGUPAN_NE))
                 .build(this)
             dropoffSearchLauncher.launch(intent)
         }
@@ -349,16 +367,20 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (location != null) {
                 val latLng = LatLng(location.latitude, location.longitude)
                 val address = getAddressFromLatLng(latLng)
-                if (isPickup) {
-                    pickupLocationLatLng = latLng
-                    binding.pickupLocationEditText.setText(address)
-                    setPickupMarker(latLng)
+                if (!isInDagupanBounds(latLng)) {
+                    Toast.makeText(this, "Location is outside Dagupan City.", Toast.LENGTH_SHORT).show()
                 } else {
-                    destinationLatLng = latLng
-                    binding.destinationEditText.setText(address)
-                    setDestinationMarker(latLng)
+                    if (isPickup) {
+                        pickupLocationLatLng = latLng
+                        binding.pickupLocationEditText.setText(address)
+                        setPickupMarker(latLng)
+                    } else {
+                        destinationLatLng = latLng
+                        binding.destinationEditText.setText(address)
+                        setDestinationMarker(latLng)
+                    }
+                    updateEstimatedFareIfReady()
                 }
-                updateEstimatedFareIfReady()
             }
         }
     }
@@ -464,6 +486,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param latLng tapped coordinate
      */
     private fun onMapTapped(latLng: LatLng) {
+        if (!isInDagupanBounds(latLng)) {
+            showTopBanner("Selected location is outside Dagupan City")
+            return
+        }
         when (selectionMode) {
             SelectionMode.PICKUP -> {
                 pickupLocationLatLng = latLng
@@ -482,7 +508,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 selectionMode = SelectionMode.NONE
             }
             else -> {
-                // No-op
+                
             }
         }
         updateEstimatedFareIfReady()
@@ -1115,6 +1141,10 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         val dropoff = destinationLatLng
         if (pickup == null || dropoff == null) {
             Toast.makeText(this, "Please set pickup and destination.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!isInDagupanBounds(pickup) || !isInDagupanBounds(dropoff)) {
+            Toast.makeText(this, "Bookings are limited to Dagupan City.", Toast.LENGTH_SHORT).show()
             return
         }
         val pickupAddress = binding.pickupLocationEditText.text?.toString() ?: ""
