@@ -62,6 +62,7 @@ class DriverOffersAdapter(
         private val textPickup: TextView = itemView.findViewById(R.id.textViewOfferPickup)
         private val textDestination: TextView = itemView.findViewById(R.id.textViewOfferDestination)
         private val textDistance: TextView = itemView.findViewById(R.id.textViewOfferDistance)
+        private val textEstimatedFare: TextView = itemView.findViewById(R.id.textViewOfferEstimatedFare)
         private val btnAccept: Button = itemView.findViewById(R.id.buttonOfferAccept)
         private val btnDecline: Button = itemView.findViewById(R.id.buttonOfferDecline)
         private val ratingBar: RatingBar = itemView.findViewById(R.id.ratingBarOfferRider)
@@ -99,6 +100,18 @@ class DriverOffersAdapter(
                 textDistance.visibility = View.VISIBLE
                 textDistance.text = "Distance to pickup: -- km"
             }
+
+            val base = offer.fareBase ?: 50.0
+            val perKm = offer.perKmRate ?: 13.5
+            val estFare = offer.estimatedFare ?: run {
+                val destLat = offer.destinationLatitude ?: 0.0
+                val destLng = offer.destinationLongitude ?: 0.0
+                val dest = LatLng(destLat, destLng)
+                val tripKm = calculateDistanceKm(pickup, dest)
+                base + (perKm * tripKm)
+            }
+            textEstimatedFare.text = String.format(java.util.Locale.getDefault(), "Estimated Fare: ₱%.2f", estFare)
+            textEstimatedFare.visibility = View.VISIBLE
 
             btnAccept.setOnClickListener { onAccept(offer) }
             btnDecline.setOnClickListener { onDecline(offer) }

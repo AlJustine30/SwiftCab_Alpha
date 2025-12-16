@@ -549,6 +549,30 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.buttonCancelTripDriver.visibility = View.VISIBLE
+                binding.buttonCancelTripDriver.isEnabled = true
+                binding.buttonCancelTripDriver.setOnClickListener {
+                    val bId = booking.bookingId ?: return@setOnClickListener
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Cancel booking?")
+                        .setMessage("Are you sure you want to cancel this booking?")
+                        .setPositiveButton("Yes, cancel") { dialog, _ ->
+                            binding.buttonCancelTripDriver.isEnabled = false
+                            functions.getHttpsCallable("cancelBooking")
+                                .call(mapOf("bookingId" to bId))
+                                .addOnSuccessListener {
+                                    binding.tripActionButton.visibility = View.GONE
+                                    binding.buttonPaymentConfirmed.visibility = View.GONE
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e(TAG, "Driver cancel failed", e)
+                                    binding.buttonCancelTripDriver.isEnabled = true
+                                }
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
+                        .show()
+                }
                 binding.textViewDriverFinalFare.visibility = View.GONE
                 binding.buttonPaymentConfirmed.visibility = View.GONE
             }
@@ -558,6 +582,30 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.buttonCancelTripDriver.visibility = View.VISIBLE
+                binding.buttonCancelTripDriver.isEnabled = true
+                binding.buttonCancelTripDriver.setOnClickListener {
+                    val bId = booking.bookingId ?: return@setOnClickListener
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Cancel booking?")
+                        .setMessage("Are you sure you want to cancel this booking?")
+                        .setPositiveButton("Yes, cancel") { dialog, _ ->
+                            binding.buttonCancelTripDriver.isEnabled = false
+                            functions.getHttpsCallable("cancelBooking")
+                                .call(mapOf("bookingId" to bId))
+                                .addOnSuccessListener {
+                                    binding.tripActionButton.visibility = View.GONE
+                                    binding.buttonPaymentConfirmed.visibility = View.GONE
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e(TAG, "Driver cancel failed", e)
+                                    binding.buttonCancelTripDriver.isEnabled = true
+                                }
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
+                        .show()
+                }
                 binding.textViewDriverFinalFare.visibility = View.GONE
                 binding.buttonPaymentConfirmed.visibility = View.GONE
             }
@@ -567,6 +615,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.buttonCancelTripDriver.visibility = View.GONE
                 binding.textViewDriverFinalFare.visibility = View.GONE
                 binding.buttonPaymentConfirmed.visibility = View.GONE
             }
@@ -576,19 +625,41 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 val base = booking.fareBase ?: 0.0
                 val pickupLatLng = LatLng(booking.pickupLatitude ?: 0.0, booking.pickupLongitude ?: 0.0)
                 val dropoffLatLng = LatLng(booking.destinationLatitude ?: 0.0, booking.destinationLongitude ?: 0.0)
-                val distanceKm = calculateDistanceKm(pickupLatLng, dropoffLatLng)
-                startDriverTripTimer(startMs, perMin, base, PER_KM_RATE, distanceKm)
+                val apiKey = getString(R.string.google_maps_key)
+                val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickupLatLng.latitude},${pickupLatLng.longitude}&destination=${dropoffLatLng.latitude},${dropoffLatLng.longitude}&mode=driving&key=$apiKey"
+                lifecycleScope.launch(Dispatchers.IO) {
+                    var distanceKm = 0.0
+                    try {
+                        val result = java.net.URL(url).readText()
+                        val jsonObject = org.json.JSONObject(result)
+                        val routes = jsonObject.getJSONArray("routes")
+                        if (routes.length() > 0) {
+                            val legs = routes.getJSONObject(0).getJSONArray("legs")
+                            if (legs.length() > 0) {
+                                val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
+                                distanceKm = meters / 1000.0
+                            }
+                        }
+                    } catch (_: Exception) {
+                        distanceKm = calculateDistanceKm(pickupLatLng, dropoffLatLng)
+                    }
+                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        startDriverTripTimer(startMs, perMin, base, PER_KM_RATE, distanceKm)
+                    }
+                }
 
                 binding.tripActionButton.text = "Complete Trip"
                 binding.tripActionButton.visibility = View.VISIBLE
                 binding.tripActionButton.setOnClickListener { onTripActionButtonClicked() }
                 binding.tripActionButton.isEnabled = true
+                binding.buttonCancelTripDriver.visibility = View.GONE
                 binding.textViewDriverFinalFare.visibility = View.VISIBLE
                 binding.buttonPaymentConfirmed.visibility = View.GONE
             }
             "AWAITING_PAYMENT" -> {
                 stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
+                binding.buttonCancelTripDriver.visibility = View.GONE
                 val fare = booking.finalFare ?: booking.estimatedFare ?: 0.0
                 binding.textViewDriverFinalFare.visibility = View.VISIBLE
                 binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", fare)
@@ -630,6 +701,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             "COMPLETED" -> {
                 stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
+                binding.buttonCancelTripDriver.visibility = View.GONE
                 val fare = booking.finalFare ?: booking.estimatedFare ?: 0.0
                 binding.textViewDriverFinalFare.visibility = View.VISIBLE
                 binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", fare)
@@ -642,6 +714,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             "CANCELED" -> {
                 stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
+                binding.buttonCancelTripDriver.visibility = View.GONE
                 detachActiveBookingListener()
                 currentBooking = null
                 showDefaultView()
@@ -650,6 +723,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
                 binding.tripActionButton.isEnabled = false
+                binding.buttonCancelTripDriver.visibility = View.GONE
                 binding.textViewDriverFinalFare.visibility = View.GONE
                 binding.buttonPaymentConfirmed.visibility = View.GONE
             }
@@ -743,31 +817,57 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                     db.getReference("bookingRequests").child(bookingId).child("perMinuteRate").setValue(2.0)
                 }
 
-                if (newStatus == "AWAITING_PAYMENT") {
-                    val b = currentBooking
-                    if (b != null) {
-                        val startMs = b.tripStartedAt ?: System.currentTimeMillis()
-                        val serverNowMs = System.currentTimeMillis() + serverTimeOffsetMs
-                        val rawElapsedMs = serverNowMs - startMs
-                        val safeElapsedMs = if (rawElapsedMs < 0) 0L else rawElapsedMs
-                        val durationMinutes = (safeElapsedMs / 60000).toInt()
-                        val perMin = b.perMinuteRate ?: 2.0
-                        val base = b.fareBase ?: 50.0
-                        val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
-                        val drop = LatLng(b.destinationLatitude ?: 0.0, b.destinationLongitude ?: 0.0)
-                        val distanceKm = calculateDistanceKm(pickup, drop)
-                        val kmFee = distanceKm * PER_KM_RATE
-                        val timeFee = durationMinutes * perMin
-                        val finalBeforeDiscount = base + kmFee + timeFee
-                        val discountPercent = b.appliedDiscountPercent ?: 0
-                        val finalFare = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
-                        val updates: Map<String, Any> = mapOf(
-                            "durationMinutes" to durationMinutes,
-                            "finalFare" to finalFare
-                        )
-                        db.getReference("bookingRequests").child(bookingId).updateChildren(updates)
-                    }
-                }
+                        if (newStatus == "AWAITING_PAYMENT") {
+                            val b = currentBooking
+                            if (b != null) {
+                                val startMs = b.tripStartedAt ?: System.currentTimeMillis()
+                                val serverNowMs = System.currentTimeMillis() + serverTimeOffsetMs
+                                val rawElapsedMs = serverNowMs - startMs
+                                val safeElapsedMs = if (rawElapsedMs < 0) 0L else rawElapsedMs
+                                val durationMinutes = (safeElapsedMs / 60000).toInt()
+                                val perMin = b.perMinuteRate ?: 2.0
+                                val base = b.fareBase ?: 50.0
+                                val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
+                                val drop = LatLng(b.destinationLatitude ?: 0.0, b.destinationLongitude ?: 0.0)
+                                val apiKey = getString(R.string.google_maps_key)
+                                val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${drop.latitude},${drop.longitude}&mode=driving&key=$apiKey"
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    var finalFareComputed = 0.0
+                                    try {
+                                        val result = java.net.URL(url).readText()
+                                        val jsonObject = org.json.JSONObject(result)
+                                        val routes = jsonObject.getJSONArray("routes")
+                                        var distanceKm = 0.0
+                                        if (routes.length() > 0) {
+                                            val legs = routes.getJSONObject(0).getJSONArray("legs")
+                                            if (legs.length() > 0) {
+                                                val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
+                                                distanceKm = meters / 1000.0
+                                            }
+                                        }
+                                        val kmFee = distanceKm * PER_KM_RATE
+                                        val timeFee = durationMinutes * perMin
+                                        val finalBeforeDiscount = base + kmFee + timeFee
+                                        val discountPercent = b.appliedDiscountPercent ?: 0
+                                        finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
+                                    } catch (_: Exception) {
+                                        val distanceKm = calculateDistanceKm(pickup, drop)
+                                        val kmFee = distanceKm * PER_KM_RATE
+                                        val timeFee = durationMinutes * perMin
+                                        val finalBeforeDiscount = base + kmFee + timeFee
+                                        val discountPercent = b.appliedDiscountPercent ?: 0
+                                        finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
+                                    }
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        val updates: Map<String, Any> = mapOf(
+                                            "durationMinutes" to durationMinutes,
+                                            "finalFare" to finalFareComputed
+                                        )
+                                        db.getReference("bookingRequests").child(bookingId).updateChildren(updates)
+                                    }
+                                }
+                            }
+                        }
 
                 // The listener will handle UI changes. Now, draw route if needed.
                 if (newStatus == "EN_ROUTE_TO_PICKUP" || newStatus == "EN_ROUTE_TO_DROPOFF") {
@@ -809,17 +909,43 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                                 val base = b.fareBase ?: 50.0
                                 val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
                                 val drop = LatLng(b.destinationLatitude ?: 0.0, b.destinationLongitude ?: 0.0)
-                                val distanceKm = calculateDistanceKm(pickup, drop)
-                                val kmFee = distanceKm * PER_KM_RATE
-                                val timeFee = durationMinutes * perMin
-                                val finalBeforeDiscount = base + kmFee + timeFee
-                                val discountPercent = b.appliedDiscountPercent ?: 0
-                                val finalFare = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
-                                val updates: Map<String, Any> = mapOf(
-                                    "durationMinutes" to durationMinutes,
-                                    "finalFare" to finalFare
-                                )
-                                bookingRef.updateChildren(updates)
+                                val apiKey = getString(R.string.google_maps_key)
+                                val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${drop.latitude},${drop.longitude}&key=$apiKey"
+                                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    var finalFareComputed = 0.0
+                                    try {
+                                        val result = java.net.URL(url).readText()
+                                        val jsonObject = org.json.JSONObject(result)
+                                        val routes = jsonObject.getJSONArray("routes")
+                                        var distanceKm = 0.0
+                                        if (routes.length() > 0) {
+                                            val legs = routes.getJSONObject(0).getJSONArray("legs")
+                                            if (legs.length() > 0) {
+                                                val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
+                                                distanceKm = meters / 1000.0
+                                            }
+                                        }
+                                        val kmFee = distanceKm * PER_KM_RATE
+                                        val timeFee = durationMinutes * perMin
+                                        val finalBeforeDiscount = base + kmFee + timeFee
+                                        val discountPercent = b.appliedDiscountPercent ?: 0
+                                        finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
+                                    } catch (_: Exception) {
+                                        val distanceKm = calculateDistanceKm(pickup, drop)
+                                        val kmFee = distanceKm * PER_KM_RATE
+                                        val timeFee = durationMinutes * perMin
+                                        val finalBeforeDiscount = base + kmFee + timeFee
+                                        val discountPercent = b.appliedDiscountPercent ?: 0
+                                        finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
+                                    }
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        val updates: Map<String, Any> = mapOf(
+                                            "durationMinutes" to durationMinutes,
+                                            "finalFare" to finalFareComputed
+                                        )
+                                        bookingRef.updateChildren(updates)
+                                    }
+                                }
                             }
                         }
                         binding.tripActionButton.isEnabled = true

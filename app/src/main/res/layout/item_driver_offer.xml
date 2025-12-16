@@ -49,6 +49,16 @@
             android:textColor="#333333"
             android:fontFamily="sans-serif" />
 
+        <TextView
+            android:id="@+id/textViewOfferEstimatedFare"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Estimated Fare: ₱--"
+            android:textStyle="bold"
+            android:textColor="@color/black"
+            android:fontFamily="sans-serif-medium" />
+
         <LinearLayout
             android:id="@+id/riderRatingSummaryOffer"
             android:layout_width="match_parent"

@@ -145,13 +145,42 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         val pickup = pickupLocationLatLng
         val dest = destinationLatLng
         if (pickup != null && dest != null) {
-            val distanceKm = calculateDistanceKm(pickup, dest)
-            var estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
-            if (applyDiscount && availableDiscountPercent > 0) {
-                val factor = 1.0 - (availableDiscountPercent / 100.0)
-                estimatedFare *= factor
+            val apiKey = getString(R.string.google_maps_key)
+            val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${dest.latitude},${dest.longitude}&mode=driving&key=$apiKey"
+            lifecycleScope.launch(Dispatchers.IO) {
+                var estimatedFare = 0.0
+                try {
+                    val result = URL(url).readText()
+                    val jsonObject = JSONObject(result)
+                    val routes = jsonObject.getJSONArray("routes")
+                    if (routes.length() > 0) {
+                        val legs = routes.getJSONObject(0).getJSONArray("legs")
+                        if (legs.length() > 0) {
+                            val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
+                            val distanceKm = meters / 1000.0
+                            estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                        }
+                    }
+                } catch (_: Exception) {
+                    val distanceKm = calculateDistanceKm(pickup, dest)
+                    estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                }
+                if (applyDiscount && availableDiscountPercent > 0) {
+                    val factor = 1.0 - (availableDiscountPercent / 100.0)
+                    estimatedFare *= factor
+                }
+                withContext(Dispatchers.Main) {
+                    binding.textViewEstimatedFare.text = String.format(java.util.Locale.getDefault(), "Estimated Fare: ₱%.2f", estimatedFare)
+                }
             }
-            binding.textViewEstimatedFare.text = String.format(java.util.Locale.getDefault(), "Estimated Fare: ₱%.2f", estimatedFare)
+        }
+    }
+
+    private fun updateRoutePreviewIfReady() {
+        val pickup = pickupLocationLatLng
+        val dest = destinationLatLng
+        if (pickup != null && dest != null) {
+            getDirectionsAndDrawRoute(pickup, dest)
         }
     }
 
@@ -247,25 +276,37 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Cancel actions
         binding.buttonCancelWhileFinding.setOnClickListener {
-            // Prevent double taps
-            it.isEnabled = false
-            // Request cancellation via ViewModel
-            viewModel.cancelBooking()
-            // Immediately reflect in UI while backend updates propagate
-            binding.findingDriverLayout.visibility = View.GONE
-            binding.bookingStatusCardView.visibility = View.GONE
-            binding.infoCardView.visibility = View.VISIBLE
-            binding.noDriversLayout.visibility = View.VISIBLE
-            binding.textViewNoDriversMessage.text = "Booking canceled."
-            // Re-enable after short delay so user can interact again
-            it.postDelayed({ it.isEnabled = true }, 800)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Cancel booking?")
+                .setMessage("Are you sure you want to cancel this booking?")
+                .setPositiveButton("Yes, cancel") { dialog, _ ->
+                    it.isEnabled = false
+                    viewModel.cancelBooking()
+                    binding.findingDriverLayout.visibility = View.GONE
+                    binding.bookingStatusCardView.visibility = View.GONE
+                    binding.infoCardView.visibility = View.VISIBLE
+                    binding.noDriversLayout.visibility = View.VISIBLE
+                    binding.textViewNoDriversMessage.text = "Booking canceled."
+                    it.postDelayed({ it.isEnabled = true }, 800)
+                    dialog.dismiss()
+                }
+                .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
+                .show()
         }
 
         binding.buttonCancelRideRider.setOnClickListener {
-            viewModel.cancelBooking()
-            hideBookingStatusCard()
-            binding.noDriversLayout.visibility = View.VISIBLE
-            binding.textViewNoDriversMessage.text = "Booking canceled."
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Cancel ride?")
+                .setMessage("Are you sure you want to cancel this ride?")
+                .setPositiveButton("Yes, cancel") { dialog, _ ->
+                    viewModel.cancelBooking()
+                    hideBookingStatusCard()
+                    binding.noDriversLayout.visibility = View.VISIBLE
+                    binding.textViewNoDriversMessage.text = "Booking canceled."
+                    dialog.dismiss()
+                }
+                .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
+                .show()
         }
     }
 
@@ -403,6 +444,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         )
         mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
         updateEstimatedFareIfReady()
+        updateRoutePreviewIfReady()
     }
 
     /**
@@ -421,6 +463,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         )
         mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
         updateEstimatedFareIfReady()
+        updateRoutePreviewIfReady()
     }
 
     /**
@@ -570,7 +613,8 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.findingDriverLayout.visibility = View.GONE
                     binding.noDriversLayout.visibility = View.GONE
                     binding.textViewBookingStatusHeader.text = "Driver on the way"
-                    binding.textViewTripStatusMessage.text = state.message
+                    binding.textViewTripStatusMessage.visibility = View.GONE
+                    binding.buttonCancelRideRider.visibility = View.VISIBLE
 
                     pickupLocationLatLng = state.pickupLocation
                     destinationLatLng = state.dropOffLocation
@@ -596,6 +640,8 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.noDriversLayout.visibility = View.GONE
                     binding.textViewBookingStatusHeader.text = "Driver arrived"
                     binding.textViewTripStatusMessage.text = state.message
+                    binding.textViewTripStatusMessage.visibility = View.VISIBLE
+                    binding.buttonCancelRideRider.visibility = View.VISIBLE
 
                     pickupLocationLatLng = state.pickupLocation
                     destinationLatLng = state.dropOffLocation
@@ -610,7 +656,8 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.findingDriverLayout.visibility = View.GONE
                     binding.noDriversLayout.visibility = View.GONE
                     binding.textViewBookingStatusHeader.text = "Trip in progress"
-                    binding.textViewTripStatusMessage.text = state.message
+                    binding.textViewTripStatusMessage.visibility = View.GONE
+                    binding.buttonCancelRideRider.visibility = View.GONE
 
                     pickupLocationLatLng = state.pickupLocation
                     destinationLatLng = state.dropOffLocation
@@ -802,7 +849,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
      */
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
         val apiKey = getString(R.string.google_maps_key)
-        val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=$apiKey"
+        val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=driving&key=$apiKey"
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -967,17 +1014,36 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.textViewInitialFee.visibility = View.VISIBLE
         binding.textViewInitialFee.text = String.format("Initial fee: ₱%.2f", initialFee)
 
-        // Compute and show km fee once
+        // Compute and show km fee using road distance
         val pickupPos = pickupMarker?.position
         val destPos = destinationMarker?.position
-        val kmFee: Double? = if (pickupPos != null && destPos != null) {
-            val distanceKm = calculateDistanceKm(pickupPos, destPos)
-            binding.textViewKmFee.visibility = View.VISIBLE
-            binding.textViewKmFee.text = String.format("Km fee (₱%.1f/km): %.2f km | ₱%.2f", PER_KM_RATE, distanceKm, distanceKm * PER_KM_RATE)
-            distanceKm * PER_KM_RATE
-        } else {
-            binding.textViewKmFee.visibility = View.GONE
-            null
+        var kmFeeValue = 0.0
+        binding.textViewKmFee.visibility = View.GONE
+        if (pickupPos != null && destPos != null) {
+            val apiKey = getString(R.string.google_maps_key)
+            val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickupPos.latitude},${pickupPos.longitude}&destination=${destPos.latitude},${destPos.longitude}&mode=driving&key=$apiKey"
+            lifecycleScope.launch(Dispatchers.IO) {
+                var distanceKm = 0.0
+                try {
+                    val result = URL(url).readText()
+                    val jsonObject = JSONObject(result)
+                    val routes = jsonObject.getJSONArray("routes")
+                    if (routes.length() > 0) {
+                        val legs = routes.getJSONObject(0).getJSONArray("legs")
+                        if (legs.length() > 0) {
+                            val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
+                            distanceKm = meters / 1000.0
+                        }
+                    }
+                } catch (_: Exception) {
+                    distanceKm = calculateDistanceKm(pickupPos, destPos)
+                }
+                kmFeeValue = distanceKm * PER_KM_RATE
+                withContext(Dispatchers.Main) {
+                    binding.textViewKmFee.visibility = View.VISIBLE
+                    binding.textViewKmFee.text = String.format("Km fee (₱%.1f/km): %.2f km | ₱%.2f", PER_KM_RATE, distanceKm, kmFeeValue)
+                }
+            }
         }
 
         // Update time fee every second and total fare each minute increment
@@ -998,7 +1064,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.textViewTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMinuteRate, minutes, seconds, timeFee)
 
                 // Compute and show running total fare, applying discount if chosen
-                val totalBeforeDiscount = initialFee + (kmFee ?: 0.0) + timeFee
+                val totalBeforeDiscount = initialFee + kmFeeValue + timeFee
                 val discountPercent = if (applyDiscount && availableDiscountPercent > 0) availableDiscountPercent else 0
                 val discountAmount = if (discountPercent > 0) totalBeforeDiscount * (discountPercent / 100.0) else 0.0
                 val totalFare = totalBeforeDiscount - discountAmount
