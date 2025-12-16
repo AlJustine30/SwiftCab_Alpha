@@ -14,6 +14,9 @@
             android:id="@+id/nav_driver_ratings"
             android:title="Ratings" />
         <item
+            android:id="@+id/nav_driver_my_submitted_ratings"
+            android:title="My Submitted Ratings" />
+        <item
             android:id="@+id/nav_driver_earnings"
             android:title="Earnings" />
     </group>

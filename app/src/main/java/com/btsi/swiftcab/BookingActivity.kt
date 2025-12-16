@@ -34,7 +34,6 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.model.Place
-import com.google.android.libraries.places.api.model.RectangularBounds
 import com.google.android.libraries.places.api.model.TypeFilter
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
@@ -90,6 +89,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var tripTimerHandler: android.os.Handler? = null
     private var tripTimerRunnable: Runnable? = null
 
+    private var searchTimerHandler: android.os.Handler? = null
+    private var searchTimerRunnable: Runnable? = null
+
     private lateinit var auth: FirebaseAuth
     private lateinit var firestore: FirebaseFirestore
 
@@ -114,13 +116,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     // Estimated fare calculation
     private val BASE_FARE = 50.0
     private val PER_KM_RATE = 13.5
-
-    private val DAGUPAN_SW = LatLng(16.001, 120.302)
-    private val DAGUPAN_NE = LatLng(16.095, 120.380)
-    private fun isInDagupanBounds(latLng: LatLng): Boolean {
-        return latLng.latitude >= DAGUPAN_SW.latitude && latLng.latitude <= DAGUPAN_NE.latitude &&
-                latLng.longitude >= DAGUPAN_SW.longitude && latLng.longitude <= DAGUPAN_NE.longitude
-    }
 
     /**
      * Computes great‑circle distance between two coordinates using the haversine formula.
@@ -292,15 +287,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (result.resultCode == RESULT_OK && result.data != null) {
                 val place = Autocomplete.getPlaceFromIntent(result.data!!)
                 place.latLng?.let { latLng ->
-                    if (isInDagupanBounds(latLng)) {
-                        pickupLocationLatLng = latLng
-                        binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
-                        setPickupMarker(latLng)
-                        selectionMode = SelectionMode.NONE
-                        updateEstimatedFareIfReady()
-                    } else {
-                        Toast.makeText(this, "Pickup must be within Dagupan City.", Toast.LENGTH_SHORT).show()
-                    }
+                    pickupLocationLatLng = latLng
+                    binding.pickupLocationEditText.setText(place.address ?: place.name ?: "")
+                    setPickupMarker(latLng)
+                    selectionMode = SelectionMode.NONE
+                    updateEstimatedFareIfReady()
                 }
             } else if (result.data != null) {
                 val status = Autocomplete.getStatusFromIntent(result.data!!)
@@ -312,15 +303,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (result.resultCode == RESULT_OK && result.data != null) {
                 val place = Autocomplete.getPlaceFromIntent(result.data!!)
                 place.latLng?.let { latLng ->
-                    if (isInDagupanBounds(latLng)) {
-                        destinationLatLng = latLng
-                        binding.destinationEditText.setText(place.address ?: place.name ?: "")
-                        setDestinationMarker(latLng)
-                        selectionMode = SelectionMode.NONE
-                        updateEstimatedFareIfReady()
-                    } else {
-                        Toast.makeText(this, "Drop-off must be within Dagupan City.", Toast.LENGTH_SHORT).show()
-                    }
+                    destinationLatLng = latLng
+                    binding.destinationEditText.setText(place.address ?: place.name ?: "")
+                    setDestinationMarker(latLng)
+                    selectionMode = SelectionMode.NONE
+                    updateEstimatedFareIfReady()
                 }
             } else if (result.data != null) {
                 val status = Autocomplete.getStatusFromIntent(result.data!!)
@@ -331,7 +318,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.buttonPickupSearch.setOnClickListener {
             val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
                 .setTypeFilter(TypeFilter.ADDRESS)
-                .setLocationRestriction(RectangularBounds.newInstance(DAGUPAN_SW, DAGUPAN_NE))
                 .build(this)
             pickupSearchLauncher.launch(intent)
         }
@@ -339,7 +325,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.buttonDestinationSearch.setOnClickListener {
             val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
                 .setTypeFilter(TypeFilter.ADDRESS)
-                .setLocationRestriction(RectangularBounds.newInstance(DAGUPAN_SW, DAGUPAN_NE))
                 .build(this)
             dropoffSearchLauncher.launch(intent)
         }
@@ -367,20 +352,16 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             if (location != null) {
                 val latLng = LatLng(location.latitude, location.longitude)
                 val address = getAddressFromLatLng(latLng)
-                if (!isInDagupanBounds(latLng)) {
-                    Toast.makeText(this, "Location is outside Dagupan City.", Toast.LENGTH_SHORT).show()
+                if (isPickup) {
+                    pickupLocationLatLng = latLng
+                    binding.pickupLocationEditText.setText(address)
+                    setPickupMarker(latLng)
                 } else {
-                    if (isPickup) {
-                        pickupLocationLatLng = latLng
-                        binding.pickupLocationEditText.setText(address)
-                        setPickupMarker(latLng)
-                    } else {
-                        destinationLatLng = latLng
-                        binding.destinationEditText.setText(address)
-                        setDestinationMarker(latLng)
-                    }
-                    updateEstimatedFareIfReady()
+                    destinationLatLng = latLng
+                    binding.destinationEditText.setText(address)
+                    setDestinationMarker(latLng)
                 }
+                updateEstimatedFareIfReady()
             }
         }
     }
@@ -486,10 +467,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param latLng tapped coordinate
      */
     private fun onMapTapped(latLng: LatLng) {
-        if (!isInDagupanBounds(latLng)) {
-            showTopBanner("Selected location is outside Dagupan City")
-            return
-        }
         when (selectionMode) {
             SelectionMode.PICKUP -> {
                 pickupLocationLatLng = latLng
@@ -508,7 +485,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                 selectionMode = SelectionMode.NONE
             }
             else -> {
-                
+                // No-op
             }
         }
         updateEstimatedFareIfReady()
@@ -579,8 +556,15 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     binding.textViewDriverNameStatus.text = "Loading..."
                     binding.textViewVehicleDetailsStatus.text = ""
                     binding.textViewDriverPhoneStatus.text = ""
+                    val exp = state.expiresAt
+                    if (exp != null) {
+                        startSearchCountdown(exp)
+                    } else {
+                        stopSearchCountdown()
+                    }
                 }
                 is BookingUiState.DriverOnTheWay -> {
+                    stopSearchCountdown()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -605,6 +589,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.DriverArrived -> {
+                    stopSearchCountdown()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -619,6 +604,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     updateEstimatedFareIfReady()
                 }
                 is BookingUiState.TripInProgress -> {
+                    stopSearchCountdown()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -657,6 +643,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.TripCompleted -> {
+                    stopSearchCountdown()
                     stopTripTimer()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
@@ -707,6 +694,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.AwaitingPayment -> {
+                    stopSearchCountdown()
                     stopTripTimer()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
@@ -1045,6 +1033,34 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Keep final fare visible for AwaitingPayment/Completed states; hide here only if card switches
     }
 
+    private fun startSearchCountdown(expiresAt: Long) {
+        stopSearchCountdown()
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        searchTimerHandler = handler
+        searchTimerRunnable = object : Runnable {
+            override fun run() {
+                val now = System.currentTimeMillis()
+                val remainingMs = (expiresAt - now).coerceAtLeast(0)
+                val minutes = (remainingMs / 60000).toInt()
+                val seconds = ((remainingMs % 60000) / 1000).toInt()
+                binding.textViewSearchCountdown.visibility = View.VISIBLE
+                binding.textViewSearchCountdown.text = String.format("Time remaining: %02d:%02d", minutes, seconds)
+                if (remainingMs > 0) {
+                    handler.postDelayed(this, 1000L)
+                } else {
+                    handler.removeCallbacks(this)
+                }
+            }
+        }
+        searchTimerRunnable!!.run()
+    }
+
+    private fun stopSearchCountdown() {
+        searchTimerRunnable?.let { searchTimerHandler?.removeCallbacks(it) }
+        searchTimerRunnable = null
+        binding.textViewSearchCountdown.visibility = View.GONE
+    }
+
     /**
      * Reads Firebase server time offset to correct client time for timers.
      */
@@ -1141,10 +1157,6 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         val dropoff = destinationLatLng
         if (pickup == null || dropoff == null) {
             Toast.makeText(this, "Please set pickup and destination.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!isInDagupanBounds(pickup) || !isInDagupanBounds(dropoff)) {
-            Toast.makeText(this, "Bookings are limited to Dagupan City.", Toast.LENGTH_SHORT).show()
             return
         }
         val pickupAddress = binding.pickupLocationEditText.text?.toString() ?: ""

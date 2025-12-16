@@ -14,6 +14,18 @@ import java.util.Date
 import java.util.Locale
 
 class RatingsAdapter : ListAdapter<Rating, RatingsAdapter.RatingViewHolder>(DIFF) {
+    private var showRatedName: Boolean = false
+    private var ratedNames: Map<String, String> = emptyMap()
+
+    fun setShowRatedName(flag: Boolean) {
+        showRatedName = flag
+        notifyDataSetChanged()
+    }
+
+    fun setRatedNames(names: Map<String, String>) {
+        ratedNames = names
+        notifyDataSetChanged()
+    }
     companion object {
         private val DIFF = object : DiffUtil.ItemCallback<Rating>() {
             override fun areItemsTheSame(oldItem: Rating, newItem: Rating): Boolean =
@@ -51,6 +63,15 @@ class RatingsAdapter : ListAdapter<Rating, RatingsAdapter.RatingViewHolder>(DIFF
             ratingBar.rating = item.rating
             commentText.text = if (item.comments.isNullOrBlank()) "No comments" else item.comments
             dateText.text = SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(Date(item.timestamp))
+
+            if ((itemView.parent as? RecyclerView)?.adapter is RatingsAdapter && (itemView.parent as RecyclerView).adapter != null) {
+                val adapter = (itemView.parent as RecyclerView).adapter as RatingsAdapter
+                if (adapter.showRatedName) {
+                    val riderName = adapter.ratedNames[item.ratedId] ?: ""
+                    raterNameText.text = if (riderName.isBlank()) "Rider: Unknown" else "Rider: $riderName"
+                    return
+                }
+            }
 
             val displayName = if (item.anonymous) maskName(item.raterName) else item.raterName
             raterNameText.text = if (displayName.isNullOrBlank()) "Rater: Anonymous" else "Rater: $displayName"

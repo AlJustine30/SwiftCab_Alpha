@@ -72,6 +72,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private var activeBookingListener: ValueEventListener? = null
     private var activeBookingRef: DatabaseReference? = null
     private var playServicesAvailable: Boolean = false
+    private var driverRatingPromptShown: Boolean = false
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1
@@ -173,6 +174,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
                 R.id.nav_driver_ratings -> {
                     startActivity(Intent(this, DriverRatingsActivity::class.java))
+                }
+                R.id.nav_driver_my_submitted_ratings -> {
+                    startActivity(Intent(this, RiderRatingsActivity::class.java))
                 }
                 R.id.nav_driver_earnings -> {
                     startActivity(Intent(this, DriverEarningsActivity::class.java))
@@ -395,6 +399,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         // Load passenger image for booking offer
         loadPassengerProfileImage(bookingRequest.riderId, binding.imageViewPassengerProfileRequest)
 
+        updateRiderRatingSummaryForOffer(bookingRequest.riderId)
+
         binding.buttonAcceptBooking.setOnClickListener {
             acceptBooking(bookingRequest.bookingId)
         }
@@ -439,6 +445,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 currentBooking = booking
                 if (booking != null && booking.bookingId != previousId) {
                     farePopupShown = false
+                    driverRatingPromptShown = false
                 }
                 if (booking != null && booking.driverId == auth.currentUser?.uid) {
                     // Backfill driver details if missing to ensure rider sees names
@@ -497,6 +504,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Load passenger image for active trip card
         loadPassengerProfileImage(booking.riderId, binding.imageViewPassengerProfileTrip)
+
+        updateRiderRatingSummaryForTrip(booking.riderId)
 
         val pickupLatLng = LatLng(booking.pickupLatitude ?: 0.0, booking.pickupLongitude ?: 0.0)
         val dropoffLatLng = LatLng(booking.destinationLatitude ?: 0.0, booking.destinationLongitude ?: 0.0)
@@ -625,6 +634,10 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.textViewDriverFinalFare.visibility = View.VISIBLE
                 binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", fare)
                 binding.buttonPaymentConfirmed.visibility = View.GONE
+
+                if (!driverRatingPromptShown) {
+                    checkAndPromptDriverRating(booking)
+                }
             }
             "CANCELED" -> {
                 stopDriverTripTimer()
@@ -644,6 +657,54 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
         }
+    }
+
+    private fun updateRiderRatingSummaryForOffer(riderId: String?) {
+        binding.riderRatingSummaryRequest.visibility = if (riderId.isNullOrBlank()) View.GONE else View.VISIBLE
+        binding.buttonViewAllRiderReviewsRequest.isEnabled = !riderId.isNullOrBlank()
+        binding.buttonViewAllRiderReviewsRequest.setOnClickListener {
+            val intent = android.content.Intent(this, DriverRatingsActivity::class.java)
+            intent.putExtra("TARGET_USER_ID", riderId)
+            intent.putExtra("FILTER_DRIVERS_ONLY", true)
+            startActivity(intent)
+        }
+        if (riderId.isNullOrBlank()) return
+        firestore.collection("AVGrating").document("driver_rating_summaries_$riderId")
+            .get()
+            .addOnSuccessListener { doc ->
+                val avg = doc.getDouble("average") ?: 0.0
+                val count = doc.getLong("count")?.toInt() ?: 0
+                binding.riderAverageRatingBarRequest.rating = avg.toFloat()
+                val summaryText = String.format(java.util.Locale.getDefault(), "%.1f stars (%d reviews)", avg, count)
+                binding.textViewRiderRatingCountRequest.text = summaryText
+            }
+            .addOnFailureListener {
+                binding.riderRatingSummaryRequest.visibility = View.GONE
+            }
+    }
+
+    private fun updateRiderRatingSummaryForTrip(riderId: String?) {
+        binding.riderRatingSummaryTrip.visibility = if (riderId.isNullOrBlank()) View.GONE else View.VISIBLE
+        binding.buttonViewAllRiderReviewsTrip.isEnabled = !riderId.isNullOrBlank()
+        binding.buttonViewAllRiderReviewsTrip.setOnClickListener {
+            val intent = android.content.Intent(this, DriverRatingsActivity::class.java)
+            intent.putExtra("TARGET_USER_ID", riderId)
+            intent.putExtra("FILTER_DRIVERS_ONLY", true)
+            startActivity(intent)
+        }
+        if (riderId.isNullOrBlank()) return
+        firestore.collection("AVGrating").document("driver_rating_summaries_$riderId")
+            .get()
+            .addOnSuccessListener { doc ->
+                val avg = doc.getDouble("average") ?: 0.0
+                val count = doc.getLong("count")?.toInt() ?: 0
+                binding.riderAverageRatingBarTrip.rating = avg.toFloat()
+                val summaryText = String.format(java.util.Locale.getDefault(), "%.1f stars (%d reviews)", avg, count)
+                binding.textViewRiderRatingCountTrip.text = summaryText
+            }
+            .addOnFailureListener {
+                binding.riderRatingSummaryTrip.visibility = View.GONE
+            }
     }
 
     /**
@@ -1115,6 +1176,86 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             Log.w(TAG, "Failed to init server time offset (driver)", e)
             serverTimeOffsetMs = 0L
         }
+    }
+
+    private fun checkAndPromptDriverRating(booking: BookingRequest) {
+        val bId = booking.bookingId ?: return
+        val riderId = booking.riderId ?: return
+        firestore.collection("bookinghistory").document(bId).get()
+            .addOnSuccessListener { doc ->
+                val alreadyRated = doc.getBoolean("driverRated") ?: false
+                if (!alreadyRated) {
+                    showDriverRatingDialog(bId, riderId)
+                }
+            }
+            .addOnFailureListener {
+                showDriverRatingDialog(bId, riderId)
+            }
+    }
+
+    private fun showDriverRatingDialog(bookingId: String, riderId: String) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_rating, null)
+        val ratingBar = dialogView.findViewById<RatingBar>(R.id.ratingBar)
+        val etComments = dialogView.findViewById<EditText>(R.id.editTextComments)
+        val checkboxAnonymous = dialogView.findViewById<android.widget.CheckBox>(R.id.checkboxAnonymous)
+        val btnSubmit = dialogView.findViewById<Button>(R.id.buttonSubmitRating)
+        val btnReport = dialogView.findViewById<Button>(R.id.buttonReportIssue)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Rate Your Rider")
+            .setView(dialogView)
+            .create()
+
+        btnSubmit.setOnClickListener {
+            val rating = ratingBar.rating
+            val comments = etComments.text.toString()
+            val anonymous = checkboxAnonymous.isChecked
+            if (rating > 0f) {
+                submitDriverRating(bookingId, riderId, rating, comments, anonymous)
+                dialog.dismiss()
+                driverRatingPromptShown = true
+            } else {
+                Toast.makeText(this, "Please provide a rating.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnReport.setOnClickListener {
+            dialog.dismiss()
+            Toast.makeText(this, "Reporting from driver is coming soon.", Toast.LENGTH_SHORT).show()
+        }
+
+        dialog.show()
+    }
+
+    private fun submitDriverRating(bookingId: String, riderId: String, rating: Float, comments: String, anonymous: Boolean) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            Toast.makeText(this, "User not logged in.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val ratingData = com.btsi.swiftcab.models.Rating(
+            bookingId = bookingId,
+            raterId = uid,
+            ratedId = riderId,
+            rating = rating,
+            comments = comments,
+            anonymous = anonymous,
+            timestamp = System.currentTimeMillis()
+        )
+
+        firestore.collection("ratings").add(ratingData)
+            .addOnSuccessListener {
+                firestore.collection("bookinghistory").document(bookingId)
+                    .set(mapOf("driverRated" to true, "driverId" to uid), SetOptions.merge())
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Failed to mark trip as rated: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                Toast.makeText(this, "Rating submitted successfully!", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to submit rating: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 
     /**

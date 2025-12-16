@@ -3,6 +3,8 @@
 const { onValueCreated } = require("firebase-functions/v2/database");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { setGlobalOptions } = require("firebase-functions/v2");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 
@@ -11,6 +13,11 @@ const db = admin.database();
 const firestore = admin.firestore();
 const authAdmin = admin.auth();
 const rtdbAdmin = admin.database();
+
+setGlobalOptions({
+  region: "us-central1",
+  serviceAccount: "323933258887-compute@developer.gserviceaccount.com",
+});
 
 /**
  * Archive a booking when its status becomes COMPLETED.
@@ -86,13 +93,6 @@ function sanitizeHistoryDoc(data) {
     status: data.status || "COMPLETED",
     timestamp: ts,
   };
-}
-
-const DAGUPAN_BOUNDS = { minLat: 16.001, maxLat: 16.095, minLng: 120.302, maxLng: 120.380 };
-function isInDagupan(lat, lng) {
-  return typeof lat === "number" && typeof lng === "number" &&
-    lat >= DAGUPAN_BOUNDS.minLat && lat <= DAGUPAN_BOUNDS.maxLat &&
-    lng >= DAGUPAN_BOUNDS.minLng && lng <= DAGUPAN_BOUNDS.maxLng;
 }
 
 /**
@@ -174,16 +174,6 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
 
     logger.log(`New booking ${bookingId}:`, bookingData);
 
-    const pLat = bookingData.pickupLatitude;
-    const pLng = bookingData.pickupLongitude;
-    const dLat = bookingData.destinationLatitude;
-    const dLng = bookingData.destinationLongitude;
-    if (!isInDagupan(pLat, pLng) || !isInDagupan(dLat, dLng)) {
-        await snapshot.ref.update({ status: "CANCELED", cancellationReason: "OUT_OF_SERVICE_AREA" });
-        logger.warn(`Booking ${bookingId} canceled: outside Dagupan bounds.`);
-        return null;
-    }
-
     try {
         // Compute and attach estimated fare server-side (fallback if missing)
         try {
@@ -216,12 +206,9 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
         const driversWithDistance = [];
         driversSnapshot.forEach((driverSnapshot) => {
             const driver = driverSnapshot.val();
-            const lat = (driver && driver.location && typeof driver.location.latitude === "number")
-                ? driver.location.latitude
-                : (driver && typeof driver.latitude === "number" ? driver.latitude : undefined);
-            const lng = (driver && driver.location && typeof driver.location.longitude === "number")
-                ? driver.location.longitude
-                : (driver && typeof driver.longitude === "number" ? driver.longitude : undefined);
+            // Read nested driver.location first, then fallback to legacy top-level latitude/longitude
+            const lat = driver?.location?.latitude ?? driver?.latitude;
+            const lng = driver?.location?.longitude ?? driver?.longitude;
             if (typeof lat === "number" && typeof lng === "number") {
                 const driverLocation = { latitude: lat, longitude: lng };
                 const distance = getDistance(riderPickupLocation, driverLocation);
@@ -232,19 +219,65 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
             }
         });
 
-        // Sort drivers by distance and take the closest 5.
-        driversWithDistance.sort((a, b) => a.distance - b.distance);
-        const closestDrivers = driversWithDistance.slice(0, 5);
+        const riderId = bookingData.riderId;
+        let riderAvg = 0;
+        try {
+            const riderDoc = await firestore.collection("AVGrating").doc("driver_rating_summaries_" + riderId).get();
+            riderAvg = riderDoc.exists ? (riderDoc.get("average") || 0) : 0;
+        } catch (_) {}
 
-        if (closestDrivers.length === 0) {
+        let maxCandidates = 50;
+        let maxOffers = 5;
+        let searchTimeoutMs = 300000;
+        try {
+            const cfgSnap = await db.ref("/config/matching").once("value");
+            const cfg = cfgSnap.val() || {};
+            if (typeof cfg.maxCandidates === "number" && cfg.maxCandidates > 0) maxCandidates = cfg.maxCandidates;
+            if (typeof cfg.maxOffers === "number" && cfg.maxOffers > 0) maxOffers = cfg.maxOffers;
+            if (typeof cfg.searchTimeoutMs === "number" && cfg.searchTimeoutMs > 0) searchTimeoutMs = cfg.searchTimeoutMs;
+        } catch (_) {}
+
+        const pool = driversWithDistance.sort((a, b) => a.distance - b.distance).slice(0, maxCandidates);
+        const withAvg = await Promise.all(
+            pool.map(async (info) => {
+                try {
+                    const dDoc = await firestore.collection("AVGrating").doc("driver_rating_summaries_" + info.driverId).get();
+                    const avg = dDoc.exists ? (dDoc.get("average") || 0) : 0;
+                    return { ...info, avg };
+                } catch (_) {
+                    return { ...info, avg: 0 };
+                }
+            })
+        );
+
+        const round = (v) => Math.round(v * 10) / 10;
+        const r = round(typeof riderAvg === "number" ? riderAvg : 0);
+        const exact = withAvg.filter((x) => round(x.avg) === r).sort((a, b) => a.distance - b.distance);
+        let selected = exact.slice(0, maxOffers);
+
+        if (r <= 0) {
+            selected = withAvg.sort((a, b) => a.distance - b.distance).slice(0, maxOffers);
+        }
+
+        if (selected.length === 0 && r > 0) {
+            const lower = withAvg.filter((x) => x.avg < r).sort((a, b) => (r - a.avg) - (r - b.avg) || a.distance - b.distance);
+            if (lower.length > 0) {
+                selected = lower.slice(0, maxOffers);
+            } else {
+                const higher = withAvg.filter((x) => x.avg > r).sort((a, b) => (a.avg - r) - (b.avg - r) || a.distance - b.distance);
+                selected = higher.slice(0, maxOffers);
+            }
+        }
+
+        if (selected.length === 0) {
             logger.warn("No drivers with location data found.");
             return snapshot.ref.update({ status: "NO_DRIVERS", cancellationReason: "NO_DRIVERS_NEARBY" });
         }
 
-        logger.log(`Found ${closestDrivers.length} closest drivers.`);
+        logger.log(`Selected ${selected.length} drivers by rating proximity.`);
 
         // Create an offer for each of the closest drivers.
-        const offerPromises = closestDrivers.map((driverInfo) => {
+        const offerPromises = selected.map((driverInfo) => {
             const driverId = driverInfo.driverId;
             // The offer includes the complete booking data plus a server timestamp.
             return db.ref(`/driverOffers/${driverId}/${bookingId}`).set({
@@ -255,6 +288,9 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
 
         await Promise.all(offerPromises);
         logger.log(`Offers sent to drivers for booking ${bookingId}`);
+        try {
+            await snapshot.ref.update({ expiresAt: Date.now() + searchTimeoutMs });
+        } catch (_) {}
         return null;
 
     } catch (error) {
@@ -361,171 +397,10 @@ exports.updateTripStatus = onCall(async (request) => {
 });
 
 
-/**
- * V2 Callable Cloud Function for a driver to accept a booking.
- *
- * This function is called by the driver'''s app. It uses a transaction
- * to ensure that only one driver can accept a booking.
- */
-exports.acceptBooking = onCall(async (request) => {
-    // Ensure the user is an authenticated driver.
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "You must be logged in to accept a booking.");
-    }
-
-    const driverId = request.auth.uid;
-    const { bookingId } = request.data; // Destructure bookingId from request data
-
-    if (!bookingId) {
-        throw new HttpsError("invalid-argument", "The function must be called with a 'bookingId'.");
-    }
-
-    const bookingRef = db.ref(`/bookingRequests/${bookingId}`);
-
-    try {
-        // Use a transaction to prevent race conditions (multiple drivers accepting the same ride).
-        const transactionResult = await bookingRef.transaction((currentData) => {
-            if (currentData === null) {
-                return null; // The booking was deleted.
-            }
-            // If the status is "SEARCHING", we can accept it.
-            if (currentData.status === "SEARCHING") {
-                // Update status and assign driverId
-                currentData.status = "ACCEPTED";
-                currentData.driverId = driverId;
-                return currentData;
-            }
-            // Otherwise, another driver has already taken it or it was canceled.
-            return; // Abort the transaction by returning undefined.
-        });
-
-        // Check if the transaction was successful.
-        if (!transactionResult.committed) {
-            logger.log(`Driver ${driverId} failed to accept booking ${bookingId} because it was already taken.`);
-            throw new HttpsError("aborted", "This booking is no longer available.");
-        }
-
-        // Get accepting driver details from Firestore 'drivers' (admin-managed).
-        let driverName = "Your Driver";
-        let driverPhone = null;
-        let driverVehicleDetails = "Standard Car";
-        try {
-            const driverDoc = await firestore.collection("drivers").doc(driverId).get();
-            if (driverDoc.exists) {
-                driverName = driverDoc.get("name") || driverName;
-                driverPhone = driverDoc.get("phone") || driverPhone;
-                const vehicle = driverDoc.get("vehicle") || {};
-                const make = vehicle.make || "";
-                const model = vehicle.model || "";
-                const year = vehicle.year || "";
-                const color = vehicle.color || "";
-                const licensePlate = vehicle.licensePlate || "";
-                // Compose a readable vehicle summary from admin-configured fields
-                const parts = [year, make, model].filter(Boolean).join(" ");
-                driverVehicleDetails = [parts, color, licensePlate].filter(Boolean).join(", ");
-            } else {
-                logger.warn(`acceptBooking: Firestore drivers/${driverId} not found; using fallbacks.`);
-            }
-        } catch (e) {
-            logger.error(`acceptBooking: Failed to fetch driver doc for ${driverId}`, e);
-        }
-
-        // Update the booking with the admin-managed driver details.
-        await bookingRef.update({
-            driverName,
-            driverVehicleDetails,
-            driverPhone,
-        });
-
-        logger.log(`Booking ${bookingId} accepted by driver ${driverId}.`);
-
-        // After successfully accepting, clean up ALL offers for this booking.
-        await cleanupOffersForBooking(bookingId);
-
-        return { success: true, message: "Booking accepted successfully." };
-
-    } catch (error) {
-        logger.error(`Error accepting booking ${bookingId} for driver ${driverId}:`, error);
-        // Re-throw the error to be handled by the client.
-        if (error instanceof HttpsError) {
-            throw error;
-        }
-        throw new HttpsError("internal", "An unexpected error occurred while accepting the booking.");
-    }
-});
 
 
-/**
- * V2 Callable Cloud Function to cancel a booking.
- *
- * This can be called by the rider.
- */
-exports.cancelBooking = onCall(async (request) => {
-    // Check authentication.
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "You must be logged in to cancel a booking.");
-    }
-
-    const { bookingId } = request.data;
-    if (!bookingId) {
-        throw new HttpsError("invalid-argument", "The function must be called with a 'bookingId'.");
-    }
-
-    const bookingRef = db.ref(`/bookingRequests/${bookingId}`);
-    const bookingSnapshot = await bookingRef.once("value");
-    const bookingData = bookingSnapshot.val();
-
-    if (!bookingData) {
-        throw new HttpsError("not-found", "The specified booking does not exist.");
-    }
-
-    // Verify that the user calling the function is the rider who created the booking.
-    if (bookingData.riderId !== request.auth.uid) {
-        throw new HttpsError("permission-denied", "You are not authorized to cancel this booking.");
-    }
-
-    // Update the status to CANCELED.
-    await bookingRef.update({
-        status: "CANCELED",
-        cancellationReason: "user_canceled", // Specific reason for client-side logic
-    });
-
-    logger.log(`Booking ${bookingId} canceled by user ${request.auth.uid}.`);
-
-    // Clean up offers from the driverOffers path.
-    await cleanupOffersForBooking(bookingId);
-
-    return { success: true, message: "Booking canceled." };
-});
 
 
-/**
- * Helper function to remove a booking offer from all drivers''' offer lists.
- * This is crucial to prevent drivers from seeing or accepting a ride that'''s
- * already been taken or canceled.
- */
-async function cleanupOffersForBooking(bookingId) {
-    const offersRef = db.ref("/driverOffers");
-    const snapshot = await offersRef.once("value");
-
-    if (!snapshot.exists()) {
-        return; // No offers to clean up
-    }
-
-    const cleanupPromises = [];
-    snapshot.forEach((driverOffersSnapshot) => {
-        const driverId = driverOffersSnapshot.key;
-        if (driverOffersSnapshot.hasChild(bookingId)) {
-            const offerRef = db.ref(`/driverOffers/${driverId}/${bookingId}`);
-            cleanupPromises.push(offerRef.remove());
-        }
-    });
-
-    if (cleanupPromises.length > 0) {
-        await Promise.all(cleanupPromises);
-        logger.log(`Cleaned up all offers for booking ${bookingId}.`);
-    }
-}
 
 /**
  * Calculates the Haversine distance between two points on the Earth.
@@ -533,23 +408,11 @@ async function cleanupOffersForBooking(bookingId) {
  * @param {{latitude: number, longitude: number}} coord2 - The second coordinate.
  * @returns {number} The distance in kilometers.
  */
-function getDistance(coord1, coord2) {
-    if (!coord1 || !coord2) return Infinity;
-    const R = 6371; // Radius of the Earth in km
-    const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
-    const dLon = (coord2.longitude - coord1.longitude) * Math.PI / 180;
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(coord1.latitude * Math.PI / 180) * Math.cos(coord2.latitude * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in km
-}
 
 exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (event) => {
   try {
     const rating = event.data.data();
-    const ratedId = rating && rating.ratedId;
+    const ratedId = rating?.ratedId;
     if (!ratedId) {
       logger.warn("aggregateDriverRating: missing ratedId");
       return;
@@ -716,7 +579,7 @@ exports.createDriverAccount = onCall(async (request) => {
     if (err && (err.code === 'auth/email-already-exists')) {
       throw new HttpsError('already-exists', 'Email already exists.');
     }
-    throw new HttpsError('internal', (err && err.message) || 'Failed to create driver');
+    throw new HttpsError('internal', err?.message || 'Failed to create driver');
   }
 });
 
@@ -777,7 +640,7 @@ exports.updateDriverAccount = onCall(async (request) => {
 
     return { ok: true };
   } catch (err) {
-    throw new HttpsError("internal", (err && err.message) || "Failed to update driver");
+    throw new HttpsError("internal", err?.message || "Failed to update driver");
   }
 });
 
@@ -900,15 +763,24 @@ exports.cancelBooking = onCall(async (request) => {
         throw new HttpsError("not-found", "The specified booking does not exist.");
     }
 
-    // Verify that the user calling the function is the rider who created the booking.
-    if (bookingData.riderId !== request.auth.uid) {
+    const callerId = request.auth.uid;
+    const forbidden = new Set(["EN_ROUTE_TO_DROPOFF", "AWAITING_PAYMENT", "COMPLETED"]);
+    if (forbidden.has(String(bookingData.status || "").toUpperCase())) {
+        throw new HttpsError("failed-precondition", "Trip has started to drop off.");
+    }
+
+    let reason = "user_canceled";
+    if (bookingData.riderId === callerId) {
+        reason = "rider_canceled";
+    } else if (bookingData.driverId === callerId) {
+        reason = "driver_canceled";
+    } else {
         throw new HttpsError("permission-denied", "You are not authorized to cancel this booking.");
     }
 
-    // Update the status to CANCELED.
     await bookingRef.update({
         status: "CANCELED",
-        cancellationReason: "user_canceled", // Specific reason for client-side logic
+        cancellationReason: reason,
     });
 
     logger.log(`Booking ${bookingId} canceled by user ${request.auth.uid}.`);
@@ -917,6 +789,23 @@ exports.cancelBooking = onCall(async (request) => {
     await cleanupOffersForBooking(bookingId);
 
     return { success: true, message: "Booking canceled." };
+});
+
+exports.expireStaleSearches = onSchedule("every 1 minutes", async (event) => {
+    const snapshot = await db.ref("bookingRequests").orderByChild("status").equalTo("SEARCHING").once("value");
+    if (!snapshot.exists()) return null;
+    const now = Date.now();
+    const updates = [];
+    snapshot.forEach((child) => {
+        const data = child.val() || {};
+        const exp = data.expiresAt;
+        if (typeof exp === "number" && exp <= now) {
+            updates.push(child.ref.update({ status: "CANCELED", cancellationReason: "timeout_no_driver" }));
+            updates.push(cleanupOffersForBooking(child.key));
+        }
+    });
+    if (updates.length > 0) await Promise.all(updates);
+    return null;
 });
 
 
@@ -948,15 +837,9 @@ async function cleanupOffersForBooking(bookingId) {
     }
 }
 
-/**
- * Calculates the Haversine distance between two points on the Earth.
- * @param {{latitude: number, longitude: number}} coord1 - The first coordinate.
- * @param {{latitude: number, longitude: number}} coord2 - The second coordinate.
- * @returns {number} The distance in kilometers.
- */
 function getDistance(coord1, coord2) {
     if (!coord1 || !coord2) return Infinity;
-    const R = 6371; // Radius of the Earth in km
+    const R = 6371;
     const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
     const dLon = (coord2.longitude - coord1.longitude) * Math.PI / 180;
     const a =
@@ -964,45 +847,5 @@ function getDistance(coord1, coord2) {
         Math.cos(coord1.latitude * Math.PI / 180) * Math.cos(coord2.latitude * Math.PI / 180) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in km
+    return R * c;
 }
-
-
-exports.aggregateDriverRating = onDocumentCreated("ratings/{ratingId}", async (event) => {
-  try {
-    const rating = event.data.data();
-    const ratedId = rating && rating.ratedId;
-    if (!ratedId) {
-      logger.warn("aggregateDriverRating: missing ratedId");
-      return;
-    }
-
-    const snap = await firestore.collection("ratings").where("ratedId", "==", ratedId).get();
-    let sum = 0;
-    let count = 0;
-    snap.forEach((doc) => {
-      const r = doc.get("rating");
-      if (typeof r === "number") {
-        sum += r;
-        count++;
-      }
-    });
-    const avg = count > 0 ? sum / count : 0;
-
-    await firestore.collection("AVGrating").doc(`driver_rating_summaries_${ratedId}`).set(
-      {
-        ratedId,
-        average: avg,
-        count,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    logger.log(
-      `aggregateDriverRating: updated summary for ${ratedId}: avg=${avg}, count=${count}`
-    );
-  } catch (err) {
-    logger.error("aggregateDriverRating error", err);
-  }
-});

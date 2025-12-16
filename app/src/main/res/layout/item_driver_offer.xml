@@ -50,6 +50,44 @@
             android:fontFamily="sans-serif" />
 
         <LinearLayout
+            android:id="@+id/riderRatingSummaryOffer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <RatingBar
+                android:id="@+id/ratingBarOfferRider"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:isIndicator="true"
+                android:numStars="5"
+                android:stepSize="0.5"
+                android:progressTint="#FFC107"
+                android:secondaryProgressTint="#FFD54F"
+                android:progressBackgroundTint="#BDBDBD" />
+
+            <TextView
+                android:id="@+id/textViewOfferRiderRatingCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(0)"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/black"
+                android:fontFamily="sans-serif"/>
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonOfferViewReviews"
+            style="@style/Widget.SwiftCab.MaterialButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="View rider reviews"
+            android:textAllCaps="false"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"

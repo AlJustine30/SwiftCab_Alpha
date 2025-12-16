@@ -26,7 +26,7 @@ class DriverRatingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setSupportActionBar(binding.toolbarRatings)
-        supportActionBar?.title = if (intent.getStringExtra("TARGET_USER_ID").isNullOrBlank()) "My Ratings" else "Driver Ratings"
+        supportActionBar?.title = if (intent.getStringExtra("TARGET_USER_ID").isNullOrBlank()) "My Ratings" else "Rider Reviews"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         auth = FirebaseAuth.getInstance()
         firestore = FirebaseFirestore.getInstance()
@@ -67,7 +67,7 @@ class DriverRatingsActivity : AppCompatActivity() {
                     binding.textViewAverage.text = "No ratings yet"
                 }
 
-                // Fallback: enrich missing rater names from users collection
+                // Fallback: enrich missing rater names from users/drivers collections
                 val missingIds = items.filter { it.raterName.isBlank() }.map { it.raterId }.distinct()
                 missingIds.forEach { userId ->
                     firestore.collection("users").document(userId).get()
@@ -79,6 +79,45 @@ class DriverRatingsActivity : AppCompatActivity() {
                             }
                         }
                         .addOnFailureListener { /* ignore */ }
+                    firestore.collection("drivers").document(userId).get()
+                        .addOnSuccessListener { doc ->
+                            val fullName = doc.getString("name") ?: doc.getString("displayName") ?: ""
+                            if (fullName.isNotBlank()) {
+                                items = items.map { r -> if (r.raterId == userId && r.raterName.isBlank()) r.copy(raterName = fullName) else r }
+                                adapter.submitList(items)
+                            }
+                        }
+                        .addOnFailureListener { /* ignore */ }
+                }
+
+                val filterDriversOnly = intent.getBooleanExtra("FILTER_DRIVERS_ONLY", false)
+                if (filterDriversOnly) {
+                    val raterIds = items.map { it.raterId }.distinct()
+                    val driverIds = mutableSetOf<String>()
+                    var remaining = raterIds.size
+                    if (raterIds.isEmpty()) return@addOnSuccessListener
+                    raterIds.forEach { rid ->
+                        firestore.collection("drivers").document(rid).get()
+                            .addOnSuccessListener { doc ->
+                                if (doc.exists()) driverIds.add(rid)
+                            }
+                            .addOnCompleteListener {
+                                remaining -= 1
+                                if (remaining <= 0) {
+                                    val filtered = items.filter { it.raterId in driverIds }
+                                    adapter.submitList(filtered)
+                                    val c = filtered.size
+                                    if (c > 0) {
+                                        val avg = filtered.map { it.rating }.average()
+                                        binding.ratingBarAverage.rating = avg.toFloat()
+                                        binding.textViewAverage.text = String.format("%.1f stars (%d driver reviews)", avg, c)
+                                    } else {
+                                        binding.ratingBarAverage.rating = 0f
+                                        binding.textViewAverage.text = "No driver reviews yet"
+                                    }
+                                }
+                            }
+                    }
                 }
             }
             .addOnFailureListener { e ->

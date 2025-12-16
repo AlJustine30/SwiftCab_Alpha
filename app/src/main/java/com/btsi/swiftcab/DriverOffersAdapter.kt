@@ -4,10 +4,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.RatingBar
 import android.widget.TextView
+import android.content.Intent
 import androidx.recyclerview.widget.RecyclerView
 import com.btsi.swiftcab.models.BookingRequest
 import com.google.android.gms.maps.model.LatLng
+import com.google.firebase.firestore.FirebaseFirestore
 
 class DriverOffersAdapter(
     private val offers: MutableList<BookingRequest>,
@@ -61,6 +64,10 @@ class DriverOffersAdapter(
         private val textDistance: TextView = itemView.findViewById(R.id.textViewOfferDistance)
         private val btnAccept: Button = itemView.findViewById(R.id.buttonOfferAccept)
         private val btnDecline: Button = itemView.findViewById(R.id.buttonOfferDecline)
+        private val ratingBar: RatingBar = itemView.findViewById(R.id.ratingBarOfferRider)
+        private val ratingCountText: TextView = itemView.findViewById(R.id.textViewOfferRiderRatingCount)
+        private val btnViewReviews: Button = itemView.findViewById(R.id.buttonOfferViewReviews)
+        private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 
         /**
          * Binds offer information and actions to views, including distance to pickup.
@@ -95,6 +102,35 @@ class DriverOffersAdapter(
 
             btnAccept.setOnClickListener { onAccept(offer) }
             btnDecline.setOnClickListener { onDecline(offer) }
+
+            btnViewReviews.setOnClickListener {
+                val ctx = itemView.context
+                val intent = Intent(ctx, DriverRatingsActivity::class.java)
+                intent.putExtra("TARGET_USER_ID", offer.riderId)
+                intent.putExtra("FILTER_DRIVERS_ONLY", true)
+                ctx.startActivity(intent)
+            }
+
+            val riderId = offer.riderId
+            if (riderId.isNullOrBlank()) {
+                ratingBar.rating = 0f
+                ratingCountText.text = "(0)"
+                btnViewReviews.isEnabled = false
+            } else {
+                btnViewReviews.isEnabled = true
+                firestore.collection("AVGrating").document("driver_rating_summaries_$riderId")
+                    .get()
+                    .addOnSuccessListener { doc ->
+                        val avg = doc.getDouble("average") ?: 0.0
+                        val count = doc.getLong("count")?.toInt() ?: 0
+                        ratingBar.rating = avg.toFloat()
+                        ratingCountText.text = String.format(java.util.Locale.getDefault(), "(%d)", count)
+                    }
+                    .addOnFailureListener {
+                        ratingBar.rating = 0f
+                        ratingCountText.text = "(0)"
+                    }
+            }
         }
 
         /**

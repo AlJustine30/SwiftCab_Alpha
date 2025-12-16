@@ -55,6 +55,7 @@ class RiderRatingsActivity : AppCompatActivity() {
             .get()
             .addOnSuccessListener { snap ->
                 var items = snap.documents.mapNotNull { it.toObject(Rating::class.java) }
+                adapter.setShowRatedName(true)
                 adapter.submitList(items)
                 binding.textViewSummary.text = "You have submitted ${items.size} ratings"
 
@@ -70,6 +71,26 @@ class RiderRatingsActivity : AppCompatActivity() {
                             }
                         }
                         .addOnFailureListener { /* ignore */ }
+                }
+
+                // Resolve rated user names so the rider's name shows always
+                val ratedIds = items.map { it.ratedId }.filter { it.isNotBlank() }.distinct()
+                if (ratedIds.isNotEmpty()) {
+                    val nameMap = mutableMapOf<String, String>()
+                    var remaining = ratedIds.size
+                    ratedIds.forEach { rid ->
+                        firestore.collection("users").document(rid).get()
+                            .addOnSuccessListener { doc ->
+                                val fullName = doc.getString("name") ?: doc.getString("displayName") ?: ""
+                                if (!fullName.isNullOrBlank()) nameMap[rid] = fullName
+                            }
+                            .addOnCompleteListener {
+                                remaining -= 1
+                                if (remaining <= 0) {
+                                    adapter.setRatedNames(nameMap)
+                                }
+                            }
+                    }
                 }
             }
             .addOnFailureListener { e ->

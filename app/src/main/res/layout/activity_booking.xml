@@ -507,6 +507,16 @@
             android:textColor="@android:color/white"
             android:textSize="16sp" />
 
+        <TextView
+            android:id="@+id/textViewSearchCountdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Time remaining: 05:00"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/buttonCancelWhileFinding"
             android:layout_width="wrap_content"

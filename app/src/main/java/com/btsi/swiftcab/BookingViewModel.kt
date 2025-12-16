@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 sealed class BookingUiState {
     object Initial : BookingUiState()
-    data class FindingDriver(val message: String) : BookingUiState()
+    data class FindingDriver(val message: String, val expiresAt: Long? = null) : BookingUiState()
     data class DriverOnTheWay(
         val driverId: String,
         val driverName: String,
@@ -108,13 +108,6 @@ class BookingViewModel(
     private val PER_KM_RATE = 13.5
     private val PER_MIN_RATE = 2.0
 
-    private val DAGUPAN_SW = LatLng(16.001, 120.302)
-    private val DAGUPAN_NE = LatLng(16.095, 120.380)
-    private fun isInDagupanBounds(latLng: LatLng): Boolean {
-        return latLng.latitude >= DAGUPAN_SW.latitude && latLng.latitude <= DAGUPAN_NE.latitude &&
-                latLng.longitude >= DAGUPAN_SW.longitude && latLng.longitude <= DAGUPAN_NE.longitude
-    }
-
     /**
      * Computes great‑circle distance between two coordinates using haversine.
      */
@@ -146,10 +139,6 @@ class BookingViewModel(
         val riderId = auth.currentUser?.uid
         if (riderId == null) {
             _uiState.postValue(BookingUiState.Error("User not logged in."))
-            return
-        }
-        if (!isInDagupanBounds(pickupLatLng) || !isInDagupanBounds(destinationLatLng)) {
-            _uiState.postValue(BookingUiState.Error("Bookings are limited to Dagupan City."))
             return
         }
 
@@ -366,7 +355,10 @@ class BookingViewModel(
                 val locationDataAvailable = pLat != null && pLng != null && dLat != null && dLng != null
 
                 val newState = when (booking.status) {
-                    "SEARCHING" -> BookingUiState.FindingDriver("Finding a driver...")
+                    "SEARCHING" -> {
+                        val expiresAt = snapshot.child("expiresAt").getValue(Long::class.java)
+                        BookingUiState.FindingDriver("Finding a driver...", expiresAt)
+                    }
                     "ACCEPTED", "EN_ROUTE_TO_PICKUP" -> {
                         if (locationDataAvailable) {
                             BookingUiState.DriverOnTheWay(
@@ -786,7 +778,10 @@ class BookingViewModelLegacy(
                 val locationDataAvailable = pLat != null && pLng != null && dLat != null && dLng != null
 
                 val newState = when (booking.status) {
-                    "SEARCHING" -> BookingUiState.FindingDriver("Finding a driver...")
+                    "SEARCHING" -> {
+                        val expiresAt = snapshot.child("expiresAt").getValue(Long::class.java)
+                        BookingUiState.FindingDriver("Finding a driver...", expiresAt)
+                    }
                     "ACCEPTED", "EN_ROUTE_TO_PICKUP" -> {
                         if (locationDataAvailable) {
                             BookingUiState.DriverOnTheWay(

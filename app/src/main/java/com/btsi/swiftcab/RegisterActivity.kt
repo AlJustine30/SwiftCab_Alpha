@@ -4,8 +4,12 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import android.widget.ScrollView
+import android.widget.LinearLayout
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -36,9 +40,17 @@ class   RegisterActivity : AppCompatActivity() {
         val loginRedirectTextView = findViewById<TextView>(R.id.loginRedirectTextView)
         val backToWelcomeTextView = findViewById<TextView>(R.id.backToWelcomeTextView)
         val progressBar = findViewById<SpinKitView>(R.id.progressBar)
+        val termsCheckBox = findViewById<CheckBox>(R.id.checkboxAgreeTerms)
+        val viewTermsTextView = findViewById<TextView>(R.id.textViewViewTerms)
 
         // Hide progress bar initially
         progressBar.visibility = android.view.View.GONE
+
+        viewTermsTextView.setOnClickListener {
+            showTermsDialog {
+                termsCheckBox.isChecked = true
+            }
+        }
 
         registerButton.setOnClickListener {
             val fullName = fullNameEditText.text.toString().trim()
@@ -59,6 +71,11 @@ class   RegisterActivity : AppCompatActivity() {
 
             if (password.length < 6) {
                 Toast.makeText(this, "Password should be at least 6 characters", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (!termsCheckBox.isChecked) {
+                Toast.makeText(this, "Please read and agree to the Terms and the Data Privacy Act of 2012", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
@@ -124,5 +141,50 @@ class   RegisterActivity : AppCompatActivity() {
         backToWelcomeTextView.setOnClickListener {
             finish()
         }
+    }
+
+    private fun showTermsDialog(onAgree: () -> Unit) {
+        val content = """
+SwiftCab Terms and Conditions
+
+By creating an account, you confirm that the information you provide is accurate and that you will use the service lawfully. You agree not to misuse the app, interfere with operations, or engage in fraudulent activity. Trips, fares, and promotions are subject to change. We may contact you for service updates, safety notifications, or support. Violations may result in suspension or termination of your account.
+
+Data Privacy Act of 2012 (Republic Act No. 10173)
+
+SwiftCab processes personal data in accordance with RA 10173. The personal information we collect may include your name, email, phone number, location data, device information, trip details, and ratings. We process this data to:
+• create and manage your account
+• match riders and drivers and operate trips
+• ensure safety, prevent fraud, and enforce policies
+• support payments, customer support, and service improvements
+• comply with legal obligations
+
+Legal bases include your consent, performance of a contract, legitimate interests, and compliance with law. You have rights to access, correct, and in certain cases delete your personal data; to object or withdraw consent; and to file a complaint with the National Privacy Commission (NPC).
+
+We retain data only for as long as necessary for the purposes stated or as required by law. We may share data with drivers, payment processors, cloud and analytics providers, and service partners under appropriate safeguards. We implement reasonable and appropriate security measures to protect your data.
+
+By agreeing, you consent to the collection and processing of your personal data as described.
+        """.trimIndent()
+
+        val scroll = ScrollView(this)
+        val container = LinearLayout(this)
+        container.orientation = LinearLayout.VERTICAL
+        container.setPadding(48, 32, 48, 32)
+        val tv = TextView(this)
+        tv.text = content
+        tv.textSize = 14f
+        container.addView(tv)
+        scroll.addView(container)
+
+        AlertDialog.Builder(this)
+            .setTitle("Terms & Data Privacy Act of 2012")
+            .setView(scroll)
+            .setPositiveButton("I Agree") { dialog, _ ->
+                onAgree()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Close") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
 }
