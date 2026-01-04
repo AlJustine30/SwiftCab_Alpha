@@ -12,14 +12,15 @@ class BookingViewModelFactory(
     private val database: FirebaseDatabase,
     private val auth: FirebaseAuth,
     private val functions: FirebaseFunctions,
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val googleMapsKey: String
 ) : ViewModelProvider.Factory {
     /**
      * Provides an instance of `BookingViewModel` with required dependencies.
      */
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BookingViewModel::class.java)) {
-            return BookingViewModel(auth, database, functions, firestore) as T
+            return BookingViewModel(auth, database, functions, firestore, googleMapsKey) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

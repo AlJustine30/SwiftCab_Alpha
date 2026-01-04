@@ -349,12 +349,14 @@ class ProfileActivity : AppCompatActivity() {
 
         user.reauthenticate(credential)
             .addOnSuccessListener {
-                if (newEmail != user.email) {
-                    user.verifyBeforeUpdateEmail(newEmail).addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Toast.makeText(this, "A confirmation email has been sent to your new email address.", Toast.LENGTH_LONG).show()
+                val emailChangedByUser = newEmail != initialEmail
+                if (emailChangedByUser && newEmail != user.email) {
+                    user.verifyBeforeUpdateEmail(newEmail)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                Toast.makeText(this, "A confirmation email has been sent to your new email address.", Toast.LENGTH_LONG).show()
+                            }
                         }
-                    }
                 }
 
                 selectedImageUri?.let { uri ->
@@ -373,7 +375,7 @@ class ProfileActivity : AppCompatActivity() {
      */
     private fun uploadImageOnly(imageUri: Uri) {
         val userId = auth.currentUser?.uid ?: return
-        val storageRef = storage.reference.child("profile_images/$userId")
+        val storageRef = storage.reference.child("users/$userId/profile.jpg")
 
         storageRef.putFile(imageUri)
             .addOnSuccessListener {
@@ -391,7 +393,7 @@ class ProfileActivity : AppCompatActivity() {
      */
     private fun uploadImageAndUpdateProfile(imageUri: Uri, newName: String, newEmail: String, newPhone: String) {
         val userId = auth.currentUser?.uid ?: return
-        val storageRef = storage.reference.child("profile_images/$userId")
+        val storageRef = storage.reference.child("users/$userId/profile.jpg")
 
         storageRef.putFile(imageUri)
             .addOnSuccessListener {
@@ -448,27 +450,15 @@ class ProfileActivity : AppCompatActivity() {
     private fun updateUserProfileImageOnly(newImageUrl: String) {
         val userId = auth.currentUser?.uid ?: return
         val updates = mapOf("profileImageUrl" to newImageUrl)
-        if (isDriver) {
-            db.collection("drivers").document(userId).set(updates, com.google.firebase.firestore.SetOptions.merge())
-                .addOnSuccessListener {
-                    Toast.makeText(this, "Driver profile image updated.", Toast.LENGTH_SHORT).show()
-                    initialImageUrl = newImageUrl
-                    selectedImageUri = null
-                }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this, "Failed to update driver image: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-        } else {
-            db.collection("users").document(userId).update(updates)
-                .addOnSuccessListener {
-                    Toast.makeText(this, "Profile image updated.", Toast.LENGTH_SHORT).show()
-                    initialImageUrl = newImageUrl
-                    selectedImageUri = null
-                }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this, "Failed to update profile image: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-        }
+        db.collection("users").document(userId).update(updates)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Profile image updated.", Toast.LENGTH_SHORT).show()
+                initialImageUrl = newImageUrl
+                selectedImageUri = null
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to update profile image: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 
     /**

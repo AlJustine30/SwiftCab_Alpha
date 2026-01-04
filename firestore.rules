@@ -29,11 +29,23 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn()
+        && (request.auth.uid == userId || isAdmin())
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['name','phone','email','profileImageUrl','nextBookingDiscountPercent','loyaltyPoints'])
+        && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['name']) || request.resource.data.name is string)
+        && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['phone']) || request.resource.data.phone is string)
+        && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['email']) || request.resource.data.email is string)
+        && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['profileImageUrl']) || request.resource.data.profileImageUrl is string)
+        && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['nextBookingDiscountPercent']) || request.resource.data.nextBookingDiscountPercent is number)
+        && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['loyaltyPoints']) || request.resource.data.loyaltyPoints is number);
     }
     match /drivers/{driverId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
+      allow update: if isSignedIn()
+        && request.auth.uid == driverId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['profileImageUrl'])
+        && request.resource.data.profileImageUrl is string;
       allow create, update: if isAdmin();
       allow delete: if isAdmin();
     }

@@ -163,7 +163,7 @@ exports.saveGoogleMapsKey = onCall(async (request) => {
 exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async (event) => {
     // The snapshot is available at event.data
     const snapshot = event.data;
-    const bookingData = snapshot.val();
+    let bookingData = snapshot.val() || {};
     const bookingId = event.params.bookingId;
 
     // Ensure the function only runs for new bookings in the "SEARCHING" state.
@@ -174,17 +174,29 @@ exports.onBookingCreated = onValueCreated("/bookingRequests/{bookingId}", async 
 
     logger.log(`New booking ${bookingId}:`, bookingData);
 
-    try {
-        // Compute and attach estimated fare server-side (fallback if missing)
+        try {
+        const updates = {};
         try {
             const pickup = { latitude: bookingData.pickupLatitude, longitude: bookingData.pickupLongitude };
             const dropoff = { latitude: bookingData.destinationLatitude, longitude: bookingData.destinationLongitude };
-            const distanceKm = typeof bookingData.distanceKm === "number" ? bookingData.distanceKm : getDistance(pickup, dropoff);
-            const fareBase = typeof bookingData.fareBase === "number" ? bookingData.fareBase : 50;
-            const perKmRate = typeof bookingData.perKmRate === "number" ? bookingData.perKmRate : 13.5;
-            const perMinuteRate = typeof bookingData.perMinuteRate === "number" ? bookingData.perMinuteRate : 2;
-            const estimatedFare = typeof bookingData.estimatedFare === "number" ? bookingData.estimatedFare : fareBase + perKmRate * distanceKm;
-            await snapshot.ref.update({ distanceKm, fareBase, perKmRate, perMinuteRate, estimatedFare });
+            const hasDistance = typeof bookingData.distanceKm === "number";
+            const hasBase = typeof bookingData.fareBase === "number";
+            const hasPerKm = typeof bookingData.perKmRate === "number";
+            const hasPerMin = typeof bookingData.perMinuteRate === "number";
+            const hasEstimate = typeof bookingData.estimatedFare === "number";
+            const distanceKm = hasDistance ? bookingData.distanceKm : getDistance(pickup, dropoff);
+            const fareBase = hasBase ? bookingData.fareBase : 50;
+            const perKmRate = hasPerKm ? bookingData.perKmRate : 13.5;
+            const perMinuteRate = hasPerMin ? bookingData.perMinuteRate : 2;
+            if (!hasDistance && Number.isFinite(distanceKm)) updates.distanceKm = distanceKm;
+            if (!hasBase) updates.fareBase = fareBase;
+            if (!hasPerKm) updates.perKmRate = perKmRate;
+            if (!hasPerMin) updates.perMinuteRate = perMinuteRate;
+            if (!hasEstimate) updates.estimatedFare = fareBase + perKmRate * (Number.isFinite(distanceKm) ? distanceKm : 0);
+            if (Object.keys(updates).length > 0) {
+                await snapshot.ref.update(updates);
+                bookingData = { ...bookingData, ...updates };
+            }
         } catch (e) {
             logger.warn(`onBookingCreated: failed to compute estimate for ${bookingId}`, e);
         }
@@ -360,8 +372,9 @@ exports.updateTripStatus = onCall(async (request) => {
         const pickup = { latitude: bookingData.pickupLatitude, longitude: bookingData.pickupLongitude };
         const dropoff = { latitude: bookingData.destinationLatitude, longitude: bookingData.destinationLongitude };
         const distanceKm = typeof bookingData.distanceKm === "number" ? bookingData.distanceKm : getDistance(pickup, dropoff);
-        const estimatedFare = typeof bookingData.estimatedFare === "number" ? bookingData.estimatedFare : fareBase + perKmRate * distanceKm;
-        const finalFare = estimatedFare + perMinuteRate * durationMinutes;
+        const discountPercent = typeof bookingData.appliedDiscountPercent === "number" ? bookingData.appliedDiscountPercent : 0;
+        const subtotal = fareBase + perKmRate * (Number.isFinite(distanceKm) ? distanceKm : 0) + perMinuteRate * durationMinutes;
+        const finalFare = discountPercent > 0 ? subtotal * (1 - discountPercent / 100) : subtotal;
     
         await bookingRef.update({ status: newStatus, tripEndedAt: end, durationMinutes, finalFare });
     } else if (newStatus === "COMPLETED") {
@@ -373,6 +386,16 @@ exports.updateTripStatus = onCall(async (request) => {
             const afterSnapshot = await bookingRef.once("value");
             const afterData = afterSnapshot.val();
             if (afterData) {
+                try {
+                    const riderId = afterData.riderId;
+                    if (riderId) {
+                        await firestore.collection("users").doc(riderId)
+                            .set({ nextBookingDiscountPercent: 0 }, { merge: true });
+                        logger.log(`updateTripStatus: cleared nextBookingDiscountPercent for rider ${riderId}`);
+                    }
+                } catch (e) {
+                    logger.warn("updateTripStatus: failed to clear rider discount", e);
+                }
                 const ts = typeof afterData.timestamp === "number" ? afterData.timestamp : (afterData.tripEndedAt || Date.now());
                 const historyDoc = {
                     ...afterData,

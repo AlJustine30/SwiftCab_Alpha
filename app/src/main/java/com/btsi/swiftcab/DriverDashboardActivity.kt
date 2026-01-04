@@ -56,6 +56,9 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     private var driverTripTimerHandler: android.os.Handler? = null
     private var driverTripTimerRunnable: Runnable? = null
     private val PER_KM_RATE = 13.5
+    private var routeDistanceKmForFare: Double = 0.0
+    private var lastComputedFare: Double = 0.0
+    private var lastComputedMinutes: Int = 0
 
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -644,7 +647,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                         distanceKm = calculateDistanceKm(pickupLatLng, dropoffLatLng)
                     }
                     withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        startDriverTripTimer(startMs, perMin, base, PER_KM_RATE, distanceKm)
+                        routeDistanceKmForFare = distanceKm
+                        startDriverTripTimer(startMs, perMin, base, (booking.perKmRate ?: PER_KM_RATE), distanceKm)
                     }
                 }
 
@@ -660,10 +664,22 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 stopDriverTripTimer()
                 binding.tripActionButton.visibility = View.GONE
                 binding.buttonCancelTripDriver.visibility = View.GONE
-                val fare = booking.finalFare ?: booking.estimatedFare ?: 0.0
+                val fallbackFare: Double = run {
+                    val perMinAwait = booking.perMinuteRate ?: 2.0
+                    val baseAwait = booking.fareBase ?: 50.0
+                    val kmFeeAwait = routeDistanceKmForFare * (booking.perKmRate ?: PER_KM_RATE)
+                    val timeFeeAwait = lastComputedMinutes * perMinAwait
+                    val finalBeforeDiscountAwait = baseAwait + kmFeeAwait + timeFeeAwait
+                    val discountPercentAwait = booking.appliedDiscountPercent ?: 0
+                    if (discountPercentAwait > 0) finalBeforeDiscountAwait * (1.0 - discountPercentAwait / 100.0) else finalBeforeDiscountAwait
+                }
+                val fare = if (booking.finalFare != null) booking.finalFare!! else if (lastComputedFare > 0.0) lastComputedFare else fallbackFare
                 binding.textViewDriverFinalFare.visibility = View.VISIBLE
                 binding.textViewDriverFinalFare.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", fare)
-
+                currentBooking?.finalFare = fare
+                currentBooking?.durationMinutes = lastComputedMinutes
+                currentBooking?.distanceKm = routeDistanceKmForFare
+    
                 binding.buttonPaymentConfirmed.visibility = View.VISIBLE
                 binding.buttonPaymentConfirmed.isEnabled = true
                 binding.buttonPaymentConfirmed.text = getString(R.string.payment_confirmed)
@@ -681,7 +697,13 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                                 Log.e(TAG, "Failed to set COMPLETED status", e)
                                 // Fallback: directly set status to COMPLETED in Realtime DB
                                 val bookingRef = db.getReference("bookingRequests").child(bId)
-                                bookingRef.child("status").setValue("COMPLETED")
+                                val updates: Map<String, Any> = mapOf(
+                                    "status" to "COMPLETED",
+                                    "durationMinutes" to (currentBooking?.durationMinutes ?: lastComputedMinutes),
+                                    "finalFare" to (currentBooking?.finalFare ?: fare),
+                                    "distanceKm" to routeDistanceKmForFare
+                                )
+                                bookingRef.updateChildren(updates)
                                     .addOnSuccessListener {
                                         binding.buttonPaymentConfirmed.visibility = View.GONE
                                     }
@@ -845,14 +867,14 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                                                 distanceKm = meters / 1000.0
                                             }
                                         }
-                                        val kmFee = distanceKm * PER_KM_RATE
+                                        val kmFee = distanceKm * (b.perKmRate ?: PER_KM_RATE)
                                         val timeFee = durationMinutes * perMin
                                         val finalBeforeDiscount = base + kmFee + timeFee
                                         val discountPercent = b.appliedDiscountPercent ?: 0
                                         finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
                                     } catch (_: Exception) {
                                         val distanceKm = calculateDistanceKm(pickup, drop)
-                                        val kmFee = distanceKm * PER_KM_RATE
+                                        val kmFee = distanceKm * (b.perKmRate ?: PER_KM_RATE)
                                         val timeFee = durationMinutes * perMin
                                         val finalBeforeDiscount = base + kmFee + timeFee
                                         val discountPercent = b.appliedDiscountPercent ?: 0
@@ -907,45 +929,16 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                                 val durationMinutes = (safeElapsedMs / 60000).toInt()
                                 val perMin = b.perMinuteRate ?: 2.0
                                 val base = b.fareBase ?: 50.0
-                                val pickup = LatLng(b.pickupLatitude ?: 0.0, b.pickupLongitude ?: 0.0)
-                                val drop = LatLng(b.destinationLatitude ?: 0.0, b.destinationLongitude ?: 0.0)
-                                val apiKey = getString(R.string.google_maps_key)
-                                val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${drop.latitude},${drop.longitude}&key=$apiKey"
-                                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    var finalFareComputed = 0.0
-                                    try {
-                                        val result = java.net.URL(url).readText()
-                                        val jsonObject = org.json.JSONObject(result)
-                                        val routes = jsonObject.getJSONArray("routes")
-                                        var distanceKm = 0.0
-                                        if (routes.length() > 0) {
-                                            val legs = routes.getJSONObject(0).getJSONArray("legs")
-                                            if (legs.length() > 0) {
-                                                val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
-                                                distanceKm = meters / 1000.0
-                                            }
-                                        }
-                                        val kmFee = distanceKm * PER_KM_RATE
-                                        val timeFee = durationMinutes * perMin
-                                        val finalBeforeDiscount = base + kmFee + timeFee
-                                        val discountPercent = b.appliedDiscountPercent ?: 0
-                                        finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
-                                    } catch (_: Exception) {
-                                        val distanceKm = calculateDistanceKm(pickup, drop)
-                                        val kmFee = distanceKm * PER_KM_RATE
-                                        val timeFee = durationMinutes * perMin
-                                        val finalBeforeDiscount = base + kmFee + timeFee
-                                        val discountPercent = b.appliedDiscountPercent ?: 0
-                                        finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
-                                    }
-                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        val updates: Map<String, Any> = mapOf(
-                                            "durationMinutes" to durationMinutes,
-                                            "finalFare" to finalFareComputed
-                                        )
-                                        bookingRef.updateChildren(updates)
-                                    }
-                                }
+                                val kmFee = routeDistanceKmForFare * (b.perKmRate ?: PER_KM_RATE)
+                                val timeFee = durationMinutes * perMin
+                                val finalBeforeDiscount = base + kmFee + timeFee
+                                val discountPercent = b.appliedDiscountPercent ?: 0
+                                val finalFareComputed = if (discountPercent > 0) finalBeforeDiscount * (1.0 - discountPercent / 100.0) else finalBeforeDiscount
+                                val updates: Map<String, Any> = mapOf(
+                                    "durationMinutes" to durationMinutes,
+                                    "finalFare" to finalFareComputed
+                                )
+                                bookingRef.updateChildren(updates)
                             }
                         }
                         binding.tripActionButton.isEnabled = true
@@ -1403,7 +1396,8 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 val drop = LatLng(booking?.destinationLatitude ?: 0.0, booking?.destinationLongitude ?: 0.0)
                 calculateDistanceKm(pickup, drop)
             }
-            val subtotal = base + (km * PER_KM_RATE) + (minutes * perMin)
+            val perKm = booking?.perKmRate ?: PER_KM_RATE
+            val subtotal = base + (km * perKm) + (minutes * perMin)
             val discount = (subtotal - totalFare).coerceAtLeast(0.0)
 
             fareView.text = String.format(java.util.Locale.getDefault(), "Fare: ₱%.2f", totalFare)
@@ -1450,6 +1444,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         stopDriverTripTimer()
         val handler = android.os.Handler(mainLooper)
         driverTripTimerHandler = handler
+        routeDistanceKmForFare = distanceKm
     
         // Show initial and km fees immediately
         binding.textViewDriverInitialFee.visibility = View.VISIBLE
@@ -1469,6 +1464,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 val minutes = totalSeconds / 60
                 val seconds = totalSeconds % 60
                 val timeFee = minutes * perMin
+                lastComputedMinutes = minutes
     
                 binding.textViewDriverTimeFee.visibility = View.VISIBLE
                 binding.textViewDriverTimeFee.text = String.format("Time fee (₱%.0f/min): %02d:%02d | ₱%.2f", perMin, minutes, seconds, timeFee)
@@ -1477,6 +1473,7 @@ class DriverDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
                 val discountPercent = currentBooking?.appliedDiscountPercent ?: 0
                 val discountAmount = if (discountPercent > 0) finalBeforeDiscount * (discountPercent / 100.0) else 0.0
                 val finalFare = finalBeforeDiscount - discountAmount
+                lastComputedFare = finalFare
 
                 if (discountPercent > 0) {
                     binding.textViewDriverDiscountApplied.visibility = View.VISIBLE

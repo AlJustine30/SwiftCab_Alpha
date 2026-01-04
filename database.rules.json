@@ -3,12 +3,20 @@
     ".read": false,
     ".write": false,
     "drivers": {
-      ".read": "auth != null",
-      ".write": false
+      ".indexOn": ["isOnline"],
+      "$driverId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $driverId"
+      }
     },
     "bookingRequests": {
-      ".read": "auth != null && auth.token.admin === true",
+      ".indexOn": ["riderId","driverId"],
+      ".read": "auth != null && ((query.orderByChild == 'riderId' && query.equalTo == auth.uid) || (query.orderByChild == 'driverId' && query.equalTo == auth.uid))",
       ".write": "auth != null"
+      ,
+      "$bookingId": {
+        ".read": "auth != null && (data.child('riderId').val() == auth.uid || data.child('driverId').val() == auth.uid)"
+      }
     },
     "driverOffers": {
       ".read": "auth != null && auth.uid != null",

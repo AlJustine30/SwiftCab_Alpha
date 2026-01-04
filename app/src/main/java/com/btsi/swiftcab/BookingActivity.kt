@@ -68,6 +68,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import kotlin.math.abs
 
 class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -82,6 +83,14 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var destinationMarker: Marker? = null
     private var currentPolyline: Polyline? = null
     private var driverMarker: Marker? = null
+    private var pickupCentered: Boolean = false
+    private var destinationCentered: Boolean = false
+    private var didFitCameraForCurrentRoute: Boolean = false
+    private var currentRouteDestination: LatLng? = null
+    private var mapContainerView: View? = null
+    private var followDriverEnabled: Boolean = true
+    private var lastEstimatedDistanceKm: Double = 0.0
+    private var lastEstimatedFare: Double = 0.0
 
     private lateinit var pickupSearchLauncher: ActivityResultLauncher<Intent>
     private lateinit var dropoffSearchLauncher: ActivityResultLauncher<Intent>
@@ -149,6 +158,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${dest.latitude},${dest.longitude}&mode=driving&key=$apiKey"
             lifecycleScope.launch(Dispatchers.IO) {
                 var estimatedFare = 0.0
+                var computedDistanceKm = 0.0
                 try {
                     val result = URL(url).readText()
                     val jsonObject = JSONObject(result)
@@ -157,19 +167,21 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                         val legs = routes.getJSONObject(0).getJSONArray("legs")
                         if (legs.length() > 0) {
                             val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
-                            val distanceKm = meters / 1000.0
-                            estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                            computedDistanceKm = meters / 1000.0
+                            estimatedFare = BASE_FARE + PER_KM_RATE * computedDistanceKm
                         }
                     }
                 } catch (_: Exception) {
-                    val distanceKm = calculateDistanceKm(pickup, dest)
-                    estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                    computedDistanceKm = calculateDistanceKm(pickup, dest)
+                    estimatedFare = BASE_FARE + PER_KM_RATE * computedDistanceKm
                 }
                 if (applyDiscount && availableDiscountPercent > 0) {
                     val factor = 1.0 - (availableDiscountPercent / 100.0)
                     estimatedFare *= factor
                 }
                 withContext(Dispatchers.Main) {
+                    lastEstimatedDistanceKm = computedDistanceKm
+                    lastEstimatedFare = estimatedFare
                     binding.textViewEstimatedFare.text = String.format(java.util.Locale.getDefault(), "Estimated Fare: ₱%.2f", estimatedFare)
                 }
             }
@@ -209,7 +221,8 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             FirebaseDatabase.getInstance(),
             FirebaseAuth.getInstance(),
             FirebaseFunctions.getInstance(),
-            FirebaseFirestore.getInstance()
+            FirebaseFirestore.getInstance(),
+            getString(R.string.google_maps_key)
         )
         viewModel = ViewModelProvider(this, factory)[BookingViewModel::class.java]
 
@@ -222,6 +235,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
+        mapContainerView = findViewById(R.id.map)
         if (playServicesAvailable) {
             mapFragment?.getMapAsync(this)
         } else {
@@ -435,14 +449,20 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param latLng pickup position
      */
     private fun setPickupMarker(latLng: LatLng) {
-        pickupMarker?.remove()
-        pickupMarker = mMap?.addMarker(
-            MarkerOptions()
-                .position(latLng)
-                .title("Pickup")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-        )
-        mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+        if (pickupMarker == null) {
+            pickupMarker = mMap?.addMarker(
+                MarkerOptions()
+                    .position(latLng)
+                    .title("Pickup")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+            )
+            if (!pickupCentered) {
+                mMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                pickupCentered = true
+            }
+        } else {
+            pickupMarker?.position = latLng
+        }
         updateEstimatedFareIfReady()
         updateRoutePreviewIfReady()
     }
@@ -454,14 +474,20 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param latLng drop‑off position
      */
     private fun setDestinationMarker(latLng: LatLng) {
-        destinationMarker?.remove()
-        destinationMarker = mMap?.addMarker(
-            MarkerOptions()
-                .position(latLng)
-                .title("Drop-off")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
-        )
-        mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+        if (destinationMarker == null) {
+            destinationMarker = mMap?.addMarker(
+                MarkerOptions()
+                    .position(latLng)
+                    .title("Drop-off")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+            )
+            if (!destinationCentered) {
+                mMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                destinationCentered = true
+            }
+        } else {
+            destinationMarker?.position = latLng
+        }
         updateEstimatedFareIfReady()
         updateRoutePreviewIfReady()
     }
@@ -491,7 +517,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 location?.let {
                     val latLng = LatLng(it.latitude, it.longitude)
-                    mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                    mMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
                 }
             }
         } else {
@@ -582,6 +608,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
         viewModel.uiState.observe(this) { state ->
             when (state) {
                 is BookingUiState.Initial -> {
+                    followDriverEnabled = false
                     binding.infoCardView.visibility = View.VISIBLE
                     binding.bookingStatusCardView.visibility = View.GONE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -590,6 +617,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     clearRoute()
                 }
                 is BookingUiState.FindingDriver -> {
+                    followDriverEnabled = false
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.VISIBLE
@@ -607,6 +635,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.DriverOnTheWay -> {
+                    followDriverEnabled = true
                     stopSearchCountdown()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
@@ -633,6 +662,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.DriverArrived -> {
+                    followDriverEnabled = true
                     stopSearchCountdown()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
@@ -650,6 +680,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     updateEstimatedFareIfReady()
                 }
                 is BookingUiState.TripInProgress -> {
+                    followDriverEnabled = true
                     stopSearchCountdown()
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
@@ -690,8 +721,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.TripCompleted -> {
+                    followDriverEnabled = false
                     stopSearchCountdown()
                     stopTripTimer()
+                    applyDiscount = false
+                    binding.discountCard.visibility = View.GONE
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -741,8 +775,11 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.AwaitingPayment -> {
+                    followDriverEnabled = false
                     stopSearchCountdown()
                     stopTripTimer()
+                    applyDiscount = false
+                    binding.discountCard.visibility = View.GONE
                     binding.infoCardView.visibility = View.GONE
                     binding.bookingStatusCardView.visibility = View.VISIBLE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -791,6 +828,7 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
                 is BookingUiState.Canceled -> {
+                    followDriverEnabled = false
                     binding.infoCardView.visibility = View.VISIBLE
                     binding.bookingStatusCardView.visibility = View.GONE
                     binding.findingDriverLayout.visibility = View.GONE
@@ -848,6 +886,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param destination ending coordinate
      */
     private fun getDirectionsAndDrawRoute(origin: LatLng, destination: LatLng) {
+        val destChanged = currentRouteDestination?.let {
+            abs(it.latitude - destination.latitude) > 1e-4 || abs(it.longitude - destination.longitude) > 1e-4
+        } ?: true
+        if (destChanged) {
+            didFitCameraForCurrentRoute = false
+            currentRouteDestination = destination
+        }
         val apiKey = getString(R.string.google_maps_key)
         val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=driving&key=$apiKey"
 
@@ -867,11 +912,13 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
                         currentPolyline?.remove()
                         currentPolyline = mMap?.addPolyline(polylineOptions)
 
-                        // Adjust camera to fit the route
-                        val boundsBuilder = LatLngBounds.Builder()
-                        boundsBuilder.include(origin)
-                        boundsBuilder.include(destination)
-                        mMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 150))
+                        if (!didFitCameraForCurrentRoute) {
+                            val boundsBuilder = LatLngBounds.Builder()
+                            boundsBuilder.include(origin)
+                            boundsBuilder.include(destination)
+                            mMap?.moveCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 150))
+                            didFitCameraForCurrentRoute = true
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -950,6 +997,20 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             )
         } else {
             driverMarker?.position = latLng
+        }
+        if (followDriverEnabled) {
+            val map = mMap ?: return
+            val container = mapContainerView ?: return
+            val proj = map.projection ?: return
+            val pt = proj.toScreenLocation(latLng)
+            val inset = (80f * resources.displayMetrics.density).toInt()
+            val w = container.width
+            val h = container.height
+            if (w > 0 && h > 0) {
+                if (pt.x < inset || pt.x > w - inset || pt.y < inset || pt.y > h - inset) {
+                    map.animateCamera(CameraUpdateFactory.newLatLng(latLng))
+                }
+            }
         }
     }
 
@@ -1233,7 +1294,9 @@ class BookingActivity : AppCompatActivity(), OnMapReadyCallback {
             pickupAddress = pickupAddress,
             destinationAddress = destinationAddress,
             applyDiscount = applyDiscount,
-            availableDiscountPercent = availableDiscountPercent
+            availableDiscountPercent = availableDiscountPercent,
+            precomputedDistanceKm = if (lastEstimatedDistanceKm > 0.0) lastEstimatedDistanceKm else null,
+            precomputedEstimatedFare = if (lastEstimatedFare > 0.0) lastEstimatedFare else null
         )
     }
 

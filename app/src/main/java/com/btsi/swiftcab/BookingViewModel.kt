@@ -10,6 +10,8 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import com.google.firebase.firestore.FirebaseFirestore
+import org.json.JSONObject
+import java.net.URL
 // (Reverted) No FieldValue import needed
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.Job
@@ -86,7 +88,8 @@ class BookingViewModel(
     private val auth: FirebaseAuth,
     private val database: FirebaseDatabase,
     private val functions: FirebaseFunctions,
-    private val firestore: FirebaseFirestore // For archiving
+    private val firestore: FirebaseFirestore, // For archiving
+    private val googleMapsKey: String
 ) : ViewModel() {
 
     private val bookingRequestsRef: DatabaseReference = database.getReference("bookingRequests")
@@ -134,7 +137,9 @@ class BookingViewModel(
         pickupAddress: String,
         destinationAddress: String,
         applyDiscount: Boolean,
-        availableDiscountPercent: Int
+        availableDiscountPercent: Int,
+        precomputedDistanceKm: Double? = null,
+        precomputedEstimatedFare: Double? = null
     ) {
         val riderId = auth.currentUser?.uid
         if (riderId == null) {
@@ -181,13 +186,37 @@ class BookingViewModel(
                         val riderNameFromFirestore = doc.getString("name")
                         val riderName = auth.currentUser?.displayName?.takeIf { it.isNotBlank() } ?: riderNameFromFirestore ?: "Unknown Rider"
 
-                        val distanceKm = calculateDistanceKm(pickupLatLng, destinationLatLng)
-                        var estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
-                        val appliedDiscount = if (applyDiscount && availableDiscountPercent > 0) availableDiscountPercent else null
-                        if (appliedDiscount != null) {
-                            val discountFactor = 1.0 - (appliedDiscount / 100.0)
-                            estimatedFare *= discountFactor
+                        var distanceKm = 0.0
+                        var estimatedFare = 0.0
+                        val hasPrecomputed = (precomputedDistanceKm != null && precomputedDistanceKm > 0.0) && (precomputedEstimatedFare != null && precomputedEstimatedFare > 0.0)
+                        if (hasPrecomputed) {
+                            distanceKm = precomputedDistanceKm!!
+                            estimatedFare = precomputedEstimatedFare!!
+                        } else {
+                            try {
+                                val url = "https://maps.googleapis.com/maps/api/directions/json?origin=${pickupLatLng.latitude},${pickupLatLng.longitude}&destination=${destinationLatLng.latitude},${destinationLatLng.longitude}&mode=driving&key=$googleMapsKey"
+                                val result = URL(url).readText()
+                                val jsonObject = JSONObject(result)
+                                val routes = jsonObject.getJSONArray("routes")
+                                if (routes.length() > 0) {
+                                    val legs = routes.getJSONObject(0).getJSONArray("legs")
+                                    if (legs.length() > 0) {
+                                        val meters = legs.getJSONObject(0).getJSONObject("distance").getInt("value")
+                                        distanceKm = meters / 1000.0
+                                    }
+                                }
+                                estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                            } catch (_: Exception) {
+                                distanceKm = calculateDistanceKm(pickupLatLng, destinationLatLng)
+                                estimatedFare = BASE_FARE + PER_KM_RATE * distanceKm
+                            }
+                            val appliedDiscountInternal = if (applyDiscount && availableDiscountPercent > 0) availableDiscountPercent else 0
+                            if (appliedDiscountInternal > 0) {
+                                val discountFactor = 1.0 - (appliedDiscountInternal / 100.0)
+                                estimatedFare *= discountFactor
+                            }
                         }
+                        val appliedDiscount = if (applyDiscount && availableDiscountPercent > 0) availableDiscountPercent else 0
 
                         val bookingRequest = BookingRequest(
                             bookingId = bookingId,
@@ -212,7 +241,7 @@ class BookingViewModel(
                         bookingRequestsRef.child(bookingId).setValue(bookingRequest)
                             .addOnSuccessListener {
                                 // Consume the pending discount only if rider chose to use it
-                                if (appliedDiscount != null) {
+                                if (appliedDiscount > 0) {
                                     firestore.collection("users").document(riderId)
                                         .update(mapOf("nextBookingDiscountPercent" to 0))
                                 }
